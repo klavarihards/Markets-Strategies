@@ -6,8 +6,9 @@ strategy construction → stress testing (time windows, transaction costs,
 parameter sensitivity) → out-of-sample validation. Results are reported as
 they came out, including the ideas that did not work.
 
-Self-directed quantitative finance work by Rihards Klavins, BSc Intelligent
-Engineering and Technology student at National Taiwan University.
+Self-directed quantitative finance work by Rihards Klavins, built during summer 2026
+before starting a BSc in Intelligent Engineering and Technology at National Taiwan
+University.
 
 ---
 
@@ -97,7 +98,7 @@ selection
 ---
 
 ### 5. Monte Carlo Option Pricer
-**File:** `Monte_Carlo.ipynb`
+**File:** `monte-carlo/Monte_Carlo.ipynb`
 
 Simulates stock prices with geometric Brownian motion, prices European calls
 and puts by Monte Carlo, and checks the prices against the Black-Scholes
@@ -106,6 +107,21 @@ simulations.
 
 **Key concepts:** Geometric Brownian motion, risk-neutral pricing,
 Monte Carlo convergence, Black-Scholes
+
+---
+
+---
+
+### 6. SPY Implied Volatility Surface
+**File:** `options_volatility_surface.ipynb`
+
+Pulls SPY option chains across expiries with yfinance, converts strikes to moneyness
+and plots the implied volatility surface, the volatility smile for each expiry, and
+the ATM term structure with the expected move each implied volatility implies. The
+CSV files in the repository root are saved outputs of this notebook and of the Monte
+Carlo notebook.
+
+**Key concepts:** Implied volatility, volatility smile and term structure, moneyness
 
 ---
 
