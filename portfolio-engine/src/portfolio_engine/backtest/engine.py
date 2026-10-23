@@ -96,12 +96,23 @@ def first_rebalance(index: pd.DatetimeIndex, window_years: float, frequency: str
 def run_backtest(returns: pd.DataFrame, allocator: Allocator, costs: CostModel,
                  window_years: float = 3, frequency: str = "quarterly",
                  start_in_cash: bool = True, cash_sleeve: str = "cash",
-                 start: pd.Timestamp | None = None, name: str | None = None) -> BacktestResult:
+                 start: pd.Timestamp | None = None, name: str | None = None,
+                 overlay=None, overlay_frequency: str = "monthly",
+                 overlay_tolerance: float = 0.02) -> BacktestResult:
     """Simulate holding the allocator's portfolio through ``returns``.
 
     ``start`` lets several runs share one start date (e.g. the latest start
     needed by any window length); by default the run starts at the first
     rebalance with a full window.
+
+    **Overlays** (Phase 4) adjust the strategic ("core") portfolio between
+    rebalances: ``overlay(history, core, date) -> weights``, where
+    ``history`` is every return up to and including ``date``. On rebalance
+    dates the overlay is applied to the new core. On overlay dates (the last
+    trading day of each month by default) it is re-applied to the current
+    core, and the portfolio trades only if the overlay's target moved by more
+    than ``overlay_tolerance`` (one-way) from the last target, so small
+    wiggles in a signal do not generate trading costs.
     """
     sleeves = list(returns.columns)
     if tuple(sleeves) != costs.sleeves:
@@ -116,6 +127,7 @@ def run_backtest(returns: pd.DataFrame, allocator: Allocator, costs: CostModel,
             raise ValueError(f"No rebalance date on or after {start}")
         first = later[0]
     reb = set(rebalance_dates(idx, frequency))
+    checks = set(rebalance_dates(idx, overlay_frequency)) - reb if overlay is not None else set()
     i0 = idx.get_loc(first)
     window = pd.DateOffset(months=int(round(window_years * 12)))
 
@@ -126,6 +138,8 @@ def run_backtest(returns: pd.DataFrame, allocator: Allocator, costs: CostModel,
     n = len(idx) - i0
     net, gross, tcost, hcost = (np.zeros(n) for _ in range(4))
     targets, turns, reb_days = [], [], []
+    core = target = None
+    events = []
     for k, i in enumerate(range(i0, len(idx))):
         d = idx[i]
         if k == 0:
@@ -136,14 +150,25 @@ def run_backtest(returns: pd.DataFrame, allocator: Allocator, costs: CostModel,
             h = costs.daily_holding_cost(w)
             w = w * (1 + r) / (1 + g)             # weights drift with prices
         t = 0.0
+        new = None
         if d in reb:
             history = returns.loc[d - window:d]   # strictly up to and including today
-            target = validate_weights(allocator(history), returns.columns).to_numpy()
-            t = costs.trading_cost(w, target)
-            turns.append(0.5 * np.abs(target - w).sum())
-            targets.append(target)
+            core = validate_weights(allocator(history), returns.columns)
+            new = core.to_numpy()
+            if overlay is not None:
+                new = validate_weights(overlay(returns.iloc[:i + 1], core, d), returns.columns).to_numpy()
+            events.append({"date": d, "kind": "rebalance"})
+        elif d in checks and core is not None:
+            proposal = validate_weights(overlay(returns.iloc[:i + 1], core, d), returns.columns).to_numpy()
+            if 0.5 * np.abs(proposal - target).sum() > overlay_tolerance:
+                new = proposal
+                events.append({"date": d, "kind": "overlay"})
+        if new is not None:
+            t = costs.trading_cost(w, new)
+            turns.append(0.5 * np.abs(new - w).sum())
+            targets.append(new)
             reb_days.append(d)
-            w = target
+            w = target = new
         net[k] = (1 + g - h) * (1 - t) - 1
         gross[k], tcost[k], hcost[k] = g, t, h
 
@@ -157,4 +182,5 @@ def run_backtest(returns: pd.DataFrame, allocator: Allocator, costs: CostModel,
         trading_costs=pd.Series(tcost, out_idx, name="trading_costs"),
         holding_costs=pd.Series(hcost, out_idx, name="holding_costs"),
         window_years=window_years,
+        meta={"trades": pd.DataFrame(events)},
     )
