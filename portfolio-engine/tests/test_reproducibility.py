@@ -56,6 +56,7 @@ def test_evaluate_holdout_reports_only_holdout_dates(cfg, tmp_path):
 
 def test_runs_are_registered(cfg, tmp_path):
     import pandas as pd
+
     from portfolio_engine.backtest.registry import development_trials
     snap = write_snapshot(make_synthetic_frames(end="2015-12-31", seed=11), tmp_path / "snap")
     d1, _ = _run(cfg, snap, tmp_path / "run1")

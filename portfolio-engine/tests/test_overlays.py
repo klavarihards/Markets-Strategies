@@ -3,16 +3,14 @@
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import ROOT
 
 from portfolio_engine.allocation import RiskProfile, build_method_allocators
-from portfolio_engine.allocation.overlays import (MomentumTilt, OverlayStack, VolTarget, move_from_equity,
-                                                  rule_regime)
+from portfolio_engine.allocation.overlays import MomentumTilt, VolTarget, move_from_equity, rule_regime
 from portfolio_engine.backtest import CostModel, run_backtest
 from portfolio_engine.backtest.studies import apply_keep_rule, daily_regime, select_methods
 from portfolio_engine.config import load_config
 from portfolio_engine.data import load_market_data, make_synthetic_frames
-
-from conftest import ROOT
 
 
 @pytest.fixture(scope="module")

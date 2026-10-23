@@ -5,12 +5,11 @@ from datetime import date
 
 import pandas as pd
 import pytest
+from conftest import ROOT
 
 from portfolio_engine.config import load_config
 from portfolio_engine.data import load_market_data, make_synthetic_frames, write_snapshot
 from portfolio_engine.product import Advisor, Answers, assess_profile
-
-from conftest import ROOT
 
 TODAY = date(2026, 10, 23)
 CHOICE = {"portfolios": {"conservative": {"method": "min_cvar", "overlay": "core"},
@@ -46,7 +45,6 @@ def test_profile_is_the_more_cautious_of_capacity_and_tolerance():
 
 
 def test_advice_is_complete_and_suitable(advisor):
-    from portfolio_engine.allocation import RiskProfile
     adv = advisor.advise(_answers(), TODAY)
     assert adv["profile"]["profile"] == "balanced"
     w = pd.Series({h["sleeve"]: h["weight"] for h in adv["portfolio"]["holdings"]})
@@ -85,6 +83,7 @@ def test_pdf_report(advisor):
 
 def test_api(advisor):
     from fastapi.testclient import TestClient
+
     from portfolio_engine.product.api import create_app
     client = TestClient(create_app(advisor))
     assert client.get("/health").json()["status"] == "ok"

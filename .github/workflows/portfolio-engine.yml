@@ -1,0 +1,26 @@
+name: portfolio-engine
+
+on:
+  push:
+    paths: ["portfolio-engine/**", ".github/workflows/portfolio-engine.yml"]
+  pull_request:
+    paths: ["portfolio-engine/**", ".github/workflows/portfolio-engine.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: portfolio-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check src tests app
+      - name: Tests (synthetic data only; no network)
+        run: pytest -q

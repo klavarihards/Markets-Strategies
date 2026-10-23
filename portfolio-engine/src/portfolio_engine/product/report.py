@@ -29,8 +29,10 @@ METHOD_TEXT = {
 OVERLAY_TEXT = {"core": "", "vol_target": ", with volatility targeting", "regime_rule": ", with a market-stress filter",
                 "regime_hmm": ", with a market-stress filter", "tilt": ", with small momentum tilts",
                 "all": ", with momentum tilts, a market-stress filter and volatility targeting"}
-CRISIS_TEXT = {"global_financial_crisis": "a crisis like 2008", "inflation_shock_2022": "a year like 2022, when stocks and bonds fell together",
-               "covid_crash": "a crash like March 2020", "euro_debt_crisis": "a year like 2011", "taper_tantrum": "a bond sell-off like 2013"}
+CRISIS_TEXT = {"global_financial_crisis": "a crisis like 2008",
+               "inflation_shock_2022": "a year like 2022, when stocks and bonds fell together",
+               "covid_crash": "a crash like March 2020", "euro_debt_crisis": "a year like 2011",
+               "taper_tantrum": "a bond sell-off like 2013"}
 
 
 def _png(fig) -> str:
@@ -49,10 +51,12 @@ def weights_chart(advice: dict[str, Any]) -> str:
     for i, x in enumerate(h):
         ax.text(100 * x["weight"] + 0.8, i, f"{100 * x['weight']:.0f}%", va="center", fontsize=7)
     ax.set_xlim(0, max(100 * x["weight"] for x in h) * 1.25)
-    ax.tick_params(labelsize=7); ax.set_xlabel("% of your money", fontsize=7)
+    ax.tick_params(labelsize=7)
+    ax.set_xlabel("% of your money", fontsize=7)
     for s in ("top", "right"):
         ax.spines[s].set_visible(False)
-    out = _png(fig); plt.close(fig)
+    out = _png(fig)
+    plt.close(fig)
     return out
 
 
@@ -68,11 +72,14 @@ def fan_chart(advice: dict[str, Any]) -> str:
     ax.fill_between(years, q[1], q[3], color="#2f6f9f", alpha=0.3, label="middle half")
     ax.plot(years, q[2], color="#0b3a5b", linewidth=1.5, label="typical")
     ax.axhline(g["amount"] / 1e6, color="black", linestyle="--", linewidth=1, label="your goal")
-    ax.set_xlabel("years from now", fontsize=7); ax.set_ylabel("NT$ million", fontsize=7)
-    ax.tick_params(labelsize=7); ax.legend(fontsize=6, loc="upper left", frameon=False)
+    ax.set_xlabel("years from now", fontsize=7)
+    ax.set_ylabel("NT$ million", fontsize=7)
+    ax.tick_params(labelsize=7)
+    ax.legend(fontsize=6, loc="upper left", frameon=False)
     for s in ("top", "right"):
         ax.spines[s].set_visible(False)
-    out = _png(fig); plt.close(fig)
+    out = _png(fig)
+    plt.close(fig)
     return out
 
 

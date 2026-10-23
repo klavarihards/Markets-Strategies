@@ -4,9 +4,16 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from portfolio_engine.data import (SnapshotIntegrityError, holdout_start, load_market_data,
-                                   make_synthetic_frames, read_snapshot, snapshot_id,
-                                   to_base_currency, write_snapshot)
+from portfolio_engine.data import (
+    SnapshotIntegrityError,
+    holdout_start,
+    load_market_data,
+    make_synthetic_frames,
+    read_snapshot,
+    snapshot_id,
+    to_base_currency,
+    write_snapshot,
+)
 
 
 def test_synthetic_data_is_reproducible():

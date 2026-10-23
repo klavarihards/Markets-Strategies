@@ -30,7 +30,7 @@ from ..data.snapshot import find_snapshot, read_snapshot
 from . import metrics
 from .costs import CostModel
 from .engine import BacktestResult, first_rebalance, rebalance_dates, run_backtest
-from .experiment import compliance_table, run_experiment, split_name, summary_table
+from .experiment import run_experiment, summary_table
 
 SIMPLICITY = ["equal_weight", "risk_parity", "hrp", "min_cvar", "mean_variance", "black_litterman"]
 

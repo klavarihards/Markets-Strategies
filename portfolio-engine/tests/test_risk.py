@@ -5,16 +5,26 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import ROOT
 
-from portfolio_engine.allocation import RiskProfile, build_method_allocators
+from portfolio_engine.allocation import build_method_allocators
 from portfolio_engine.allocation.optimizer import solve
 from portfolio_engine.config import load_config
 from portfolio_engine.data import load_market_data, make_synthetic_frames
-from portfolio_engine.risk import (Client, bootstrap_paths, correlation_stress_cov, cvar_contributions, decompose,
-                                   goal_report, replay, shock_returns, simulate_goal, student_t_paths,
-                                   volatility_contributions, wealth_paths)
-
-from conftest import ROOT
+from portfolio_engine.risk import (
+    Client,
+    bootstrap_paths,
+    correlation_stress_cov,
+    cvar_contributions,
+    decompose,
+    goal_report,
+    replay,
+    shock_returns,
+    simulate_goal,
+    student_t_paths,
+    volatility_contributions,
+    wealth_paths,
+)
 
 
 @pytest.fixture(scope="module")
@@ -120,7 +130,8 @@ def test_correlation_stress_keeps_volatilities(rets):
     np.testing.assert_allclose(np.diag(st), np.diag(cov))
     sd = np.sqrt(np.diag(st))
     corr = st.to_numpy() / np.outer(sd, sd)
-    assert corr[0, 1] == pytest.approx(0.8) and corr[0, 5] == pytest.approx(cov.iloc[0, 5] / np.sqrt(cov.iloc[0, 0] * cov.iloc[5, 5]))
+    original = cov.iloc[0, 5] / np.sqrt(cov.iloc[0, 0] * cov.iloc[5, 5])
+    assert corr[0, 1] == pytest.approx(0.8) and corr[0, 5] == pytest.approx(original)
 
 
 # --- goals ----------------------------------------------------------------------------------

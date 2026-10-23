@@ -246,5 +246,6 @@ class OverlayStack:
             w = move_from_equity(w, self.cash_buffer, self.asset_class, to="cash")
         if self.vol is not None:
             w = self.vol(history, w, d)
-        self.log.append({"date": d, "stressed": stressed, "equity": float(w[[s for s in w.index if self.asset_class[s] == "equity"]].sum())})
+        equity = float(w[[s for s in w.index if self.asset_class[s] == "equity"]].sum())
+        self.log.append({"date": d, "stressed": stressed, "equity": equity})
         return w

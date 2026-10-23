@@ -37,11 +37,16 @@ import pandas as pd
 import scipy.cluster.hierarchy as sch
 import scipy.spatial.distance as ssd
 
-from ..estimators import (black_litterman, correlation_from_cov, estimate_cov, historical_mean,
-                          implied_returns, views_matrices)
+from ..estimators import (
+    black_litterman,
+    correlation_from_cov,
+    estimate_cov,
+    historical_mean,
+    implied_returns,
+    views_matrices,
+)
 from .optimizer import solve
 from .profiles import RiskProfile
-
 
 # ---------------------------------------------------------------------------
 # Pure weight rules (no profile), usable and testable on their own

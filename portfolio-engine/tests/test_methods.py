@@ -5,15 +5,19 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import ROOT
 
-from portfolio_engine.allocation import (RiskProfile, build_method_allocators, hrp_weights,
-                                         risk_contributions, risk_parity_weights)
+from portfolio_engine.allocation import (
+    RiskProfile,
+    build_method_allocators,
+    hrp_weights,
+    risk_contributions,
+    risk_parity_weights,
+)
 from portfolio_engine.allocation.optimizer import solve
 from portfolio_engine.config import load_config
 from portfolio_engine.data import load_market_data, make_synthetic_frames
 from portfolio_engine.estimators import black_litterman, historical_mean, implied_returns, ledoit_wolf
-
-from conftest import ROOT
 
 pypfopt = pytest.importorskip("pypfopt")
 

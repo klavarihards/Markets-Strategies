@@ -144,6 +144,7 @@ class Advisor:
         mc = {**self.cfg["monte_carlo"], "n_paths": pcfg.get("n_paths", 10000)}
         sim = simulate_goal(monthly, client, mc, seed=self.cfg.get("seed", 0))
         cautious = min(("bootstrap", "student_t"), key=lambda k: sim[k]["p_reach_goal"])
+        other = "student_t" if cautious == "bootstrap" else "bootstrap"
         g = sim[cautious]
 
         crises = {}
@@ -169,9 +170,10 @@ class Advisor:
                      "n_paths": int(mc["n_paths"]),
                      "probability": g["p_reach_goal"], "median": g["median_wealth"], "p5": g["p5_wealth"],
                      "p95": g["p95_wealth"], "p_loss_beyond_limit": g["p_loss_beyond_limit"],
-                     "probability_other_simulation": sim["bootstrap" if cautious == "student_t" else "student_t"]["p_reach_goal"],
+                     "probability_other_simulation": sim[other]["p_reach_goal"],
                      "contributed": g["contributed"],
-                     "with_more_monthly": {"extra": mc["sensitivity"]["extra_monthly"], "probability": g["p_reach_goal_more_monthly"]},
+                     "with_more_monthly": {"extra": mc["sensitivity"]["extra_monthly"],
+                                           "probability": g["p_reach_goal_more_monthly"]},
                      "two_years_later": {"years": mc["sensitivity"]["extra_years"], "probability": g["p_reach_goal_later"]},
                      "fan": {"months": int(sim["fan"][cautious].shape[1] - 1),
                              "quantiles": [0.05, 0.25, 0.5, 0.75, 0.95],

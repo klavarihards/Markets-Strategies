@@ -5,8 +5,15 @@ import pandas as pd
 import pytest
 
 from portfolio_engine.data import make_synthetic_frames
-from portfolio_engine.estimators import (black_litterman, correlation_from_cov, historical_mean,
-                                         implied_returns, ledoit_wolf, sample_cov, views_matrices)
+from portfolio_engine.estimators import (
+    black_litterman,
+    correlation_from_cov,
+    historical_mean,
+    implied_returns,
+    ledoit_wolf,
+    sample_cov,
+    views_matrices,
+)
 
 pypfopt = pytest.importorskip("pypfopt")
 
