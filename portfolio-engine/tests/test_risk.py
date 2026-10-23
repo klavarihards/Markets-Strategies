@@ -177,3 +177,25 @@ def test_bootstrap_uses_only_history():
     # each 12-month block is a run of consecutive months (circular)
     first_block = p[0, :12]
     assert np.all(np.diff((first_block * 1000).astype(int)) % 24 == 1)
+
+
+# --- the full Phase 3 analysis on synthetic data ----------------------------------------------
+
+def test_risk_analysis_end_to_end(cfg3):
+    from portfolio_engine.backtest import run_experiment
+    from portfolio_engine.config import override
+    from portfolio_engine.risk import run_risk_analysis
+    cfg = override(cfg3, **{"backtest.window_years": [3], "monte_carlo.n_paths": 400,
+                            "monte_carlo.extra_years": 2})
+    data = load_market_data(cfg, frames=make_synthetic_frames(end="2015-12-31", seed=4))
+    res = run_experiment(cfg, data)
+    a = run_risk_analysis(cfg, data, res)
+    n_ports = 3 + 3 * 6
+    assert len(a["weights"]) == n_ports
+    assert len(a["historical_stress"]) == n_ports * 5 and len(a["hypothetical_stress"]) == n_ports * 4
+    assert a["risk_summary"]["cvar95_daily"].lt(0).all()
+    # Each client is simulated with their own profile's six methods plus the three benchmarks, two ways.
+    assert len(a["goals"]) == 3 * (6 + 3) * 2
+    assert a["goals"]["p_reach_goal"].between(0, 1).all()
+    for d in a["decomposition"].values():
+        assert d["share_of_volatility"].sum() == pytest.approx(1) and d["share_of_cvar"].sum() == pytest.approx(1)
