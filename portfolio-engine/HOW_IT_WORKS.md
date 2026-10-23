@@ -60,10 +60,13 @@ had been reinvested, so returns computed from it are *total* returns.
   later, not assumed away.
 - The 50/50 EFA/EEM blend is rebalanced every day inside the data. That is
   a small simplification of how a real holding would behave.
-- Cash is modelled with the US T-bill rate. A Taiwan client's cash would
-  earn TWD deposit rates, which have been much lower, and has no currency
-  risk. Converting the US T-bill into TWD (as the engine does) gives cash a
-  currency risk it would not really have. This is a known limitation.
+- Cash is a TWD deposit with no currency risk, but it earns the **US**
+  T-bill rate, because no long daily TWD rate series is freely available.
+  TWD deposit rates have usually been lower, so cash returns are somewhat
+  overstated. The first version converted the T-bill into TWD instead; that
+  gave "cash" a −18.8% worst drawdown from exchange-rate moves alone, which
+  a real deposit never has, so it was changed (`currency: TWD` in the config)
+  before any further results were looked at.
 
 ---
 
@@ -82,7 +85,8 @@ where `r_FX` is the change in the number of TWD per USD.
 To the client that is `1.10 × 0.90 − 1 = −1%`, roughly nothing.
 
 Results are reported in both TWD and USD, so currency's effect is shown
-rather than hidden. Hedged results come in a later phase.
+rather than hidden. The one exception is cash, which is treated as a TWD
+deposit (see section 2). Hedged results come in a later phase.
 
 ---
 

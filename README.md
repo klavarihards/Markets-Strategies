@@ -142,27 +142,27 @@ language explanation of every part in `HOW_IT_WORKS.md`.
 
 **Results (TWD, after all costs, walk-forward with a 3-year window, Jan 2008 –
 Oct 2024; the last two years are still locked as a hold-out):**
-- Baselines: equal weight 5.4% a year, Sharpe 0.51, max drawdown -21.9%;
+- Baselines: equal weight 5.4% a year, Sharpe 0.52, max drawdown -22.4%;
   60/40 5.9%, Sharpe 0.47, -28.9%; 100% Taiwan equity 8.2%, Sharpe 0.41, -58.1%.
   Costs and taxes took about 0.4% a year from the diversified portfolios
 - Five methods (equal weight, mean-variance with Ledoit-Wolf shrinkage,
   Black-Litterman, risk parity, HRP) under conservative, balanced and growth
   profiles: none of the 60 Sharpe comparisons against 1/N and 60/40 was
   statistically significant (block bootstrap, 90%); every gap was between
-  -0.13 and +0.16
+  -0.08 and +0.14
 - Risk parity and HRP had the smallest drawdowns for conservative and balanced
-  clients with the 3-year window (balanced: -18.3% vs -22.4% for 1/N and
-  -25.4% for mean-variance), but not with the 5-year window
+  clients with the 3-year window (balanced: -18.3% vs -22.9% for 1/N and
+  -27.0% for mean-variance), but not with the 5-year window
 - Mean-variance had the highest Sharpe with the 5-year window in every profile,
-  but traded about 27-61% of the portfolio a year, against 9-20% for the others
+  but traded about 28-69% of the portfolio a year, against 9-15% for the others
 - The conservative client's -10% loss limit was breached by every method in
   both windows, and the growth client's -30% limit by every method in the
   3-year window, which includes 2008
 
 **Limitations so far:** research uses long-history US-listed proxies, not
 the Taiwan-listed funds a client would hold; cash is modelled with the US
-T-bill rate converted into TWD, which gives the cash sleeve a -18.8% worst
-drawdown that a real TWD deposit would not have; Black-Litterman's neutral portfolio is an assumption and it has
+T-bill rate (as a TWD deposit; TWD rates have usually been lower);
+Black-Litterman's neutral portfolio is an assumption and it has
 no views yet; cost and tax rates are approximate assumptions; history is one
 sample path with only a few real crises.
 

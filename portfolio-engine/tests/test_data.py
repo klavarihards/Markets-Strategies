@@ -85,9 +85,10 @@ def test_returns_are_clean(data):
 
 def test_sleeve_can_be_marked_as_local_currency(cfg, frames):
     from portfolio_engine.config import override
-    local = override(cfg, **{"sleeves.cash": {**cfg["sleeves"]["cash"], "currency": "TWD"}})
-    a = load_market_data(cfg, frames=frames)
-    b = load_market_data(local, frames=frames)
+    assert cfg["sleeves"]["cash"]["currency"] == "TWD"           # the configured choice
+    converted = {k: v for k, v in cfg["sleeves"]["cash"].items() if k != "currency"}
+    a = load_market_data(override(cfg, **{"sleeves.cash": converted}), frames=frames)
+    b = load_market_data(cfg, frames=frames)
     pd.testing.assert_series_equal(b.returns["cash"], b.returns_usd["cash"])   # no FX on cash
     assert not a.returns["cash"].equals(a.returns_usd["cash"])
     pd.testing.assert_series_equal(a.returns["gold"], b.returns["gold"])      # others unchanged

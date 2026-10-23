@@ -46,14 +46,18 @@ pytest
 ## Results
 
 From the runs in `notebooks/01_data_and_baseline.ipynb` and
-`notebooks/02_allocation_methods.ipynb`: snapshot `570bdef9e8ea` (downloaded 2026-10-23), development data to 22 Oct 2024; hold-out (23 Oct 2024 – 22 Oct 2026) not yet opened. Config hashes `3e6527ffbfbb`
-(Phase 1) and `ff5ff6328895` (Phase 2). All figures in TWD, after costs.
+`notebooks/02_allocation_methods.ipynb`: snapshot `570bdef9e8ea` (downloaded
+2026-10-23, committed in `data/snapshots/`), development data to 22 Oct 2024;
+hold-out (23 Oct 2024 – 22 Oct 2026) not yet opened. Config hashes
+`eb292432cba0` (Phase 1) and `03f45b1dbe9e` (Phase 2). All figures in TWD,
+after costs. Cash is treated as a TWD deposit (see HOW_IT_WORKS section 2;
+the first run converted it from USD and was redone before Phase 3).
 
 **Baselines, 3-year window (31 Dec 2007 – 22 Oct 2024)**
 
 | | Annual return | Volatility | Sharpe | Max drawdown | Cost drag / yr |
 |---|---|---|---|---|---|
-| Equal weight | 5.4% | 8.9% | 0.51 | -21.9% | 0.40% |
+| Equal weight | 5.4% | 8.8% | 0.52 | -22.4% | 0.40% |
 | 60/40 | 5.9% | 11.3% | 0.47 | -28.9% | 0.41% |
 | 100% Taiwan equity | 8.2% | 23.6% | 0.41 | -58.1% | -0.16% |
 
@@ -63,36 +67,37 @@ From the runs in `notebooks/01_data_and_baseline.ipynb` and
 
 | Profile | Equal weight | Mean-variance | Black-Litterman | Risk parity | HRP |
 |---|---|---|---|---|---|
-| Conservative | 0.53 (-13.7%) | 0.58 (-13.0%) | 0.39 (-14.3%) | 0.58 (-11.3%) | 0.58 (-10.5%) |
-| Balanced | 0.50 (-22.4%) | 0.53 (-25.4%) | 0.48 (-21.6%) | 0.55 (-18.3%) | 0.54 (-18.3%) |
-| Growth | 0.44 (-34.9%) | 0.46 (-36.4%) | 0.50 (-30.8%) | 0.47 (-33.1%) | 0.46 (-33.4%) |
+| Conservative | 0.50 (-15.4%) | 0.50 (-14.8%) | 0.43 (-16.6%) | 0.52 (-11.8%) | 0.53 (-11.6%) |
+| Balanced | 0.50 (-22.9%) | 0.45 (-27.0%) | 0.48 (-21.8%) | 0.54 (-18.3%) | 0.53 (-18.3%) |
+| Growth | 0.44 (-35.1%) | 0.46 (-36.4%) | 0.50 (-30.8%) | 0.47 (-33.1%) | 0.46 (-33.4%) |
 
 **5-year window (31 Dec 2009 – 22 Oct 2024)**
 
 | Profile | Equal weight | Mean-variance | Black-Litterman | Risk parity | HRP |
 |---|---|---|---|---|---|
-| Conservative | 0.61 (-10.4%) | 0.71 (-11.6%) | 0.54 (-10.5%) | 0.58 (-12.6%) | 0.56 (-11.6%) |
-| Balanced | 0.70 (-13.1%) | 0.81 (-17.3%) | 0.66 (-14.0%) | 0.68 (-13.2%) | 0.70 (-12.4%) |
-| Growth | 0.64 (-18.4%) | 0.76 (-21.8%) | 0.72 (-19.3%) | 0.67 (-18.2%) | 0.65 (-18.2%) |
+| Conservative | 0.66 (-11.8%) | 0.70 (-12.3%) | 0.60 (-10.2%) | 0.62 (-12.9%) | 0.60 (-12.2%) |
+| Balanced | 0.70 (-13.1%) | 0.79 (-17.3%) | 0.68 (-13.9%) | 0.68 (-13.2%) | 0.70 (-12.4%) |
+| Growth | 0.64 (-18.4%) | 0.75 (-21.8%) | 0.72 (-19.3%) | 0.67 (-18.2%) | 0.65 (-18.2%) |
 
 What the tables say:
 
 - **No method is distinguishable from the benchmarks.** None of the 60 Sharpe
   differences against 1/N and 60/40 has a 90% bootstrap interval that excludes
-  zero; all gaps lie between -0.13 and +0.16.
+  zero; all gaps lie between -0.08 and +0.14.
 - **Mean-variance** has the highest Sharpe in every profile with the 5-year
-  window, but trades 27-61% of the portfolio a year (others: 9-20%). With the
-  3-year window its lead disappears.
+  window, but trades 28-69% of the portfolio a year (others: 9-15%).
+  With the 3-year window it is never the best.
 - **Risk parity and HRP** gave the smallest drawdowns for conservative and
   balanced clients with the 3-year window, which includes 2008; with the
   5-year window that advantage is gone.
-- **Black-Litterman without views** was the weakest for conservative clients
-  (Sharpe 0.39 and 0.54).
+- **Black-Litterman without views** was the weakest for conservative clients.
 - **Client limits:** the conservative -10% loss limit was breached by every
   method in both windows; the growth -30% limit by every method in the 3-year
-  window. The volatility cap could not be met in 15-18% of quarters with the
-  3-year window and in 20-25% for growth with the 5-year window.
+  window; the balanced -20% limit by equal weight, mean-variance and
+  Black-Litterman in the 3-year window. The volatility cap could not be met in
+  16-18% of quarters for balanced and growth with the 3-year window, and
+  20-25% for growth with the 5-year window.
 - **The profile does much of the work:** risk parity and HRP were moved
-  11-45% of the portfolio, on average, to fit the profile limits.
+  7-44% of the portfolio, on average, to fit the profile limits.
 
 Hold-out (23 Oct 2024 – 22 Oct 2026): [RESULT], opened once at the end of Phase 3.
