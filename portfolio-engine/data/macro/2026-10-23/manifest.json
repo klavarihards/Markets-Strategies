@@ -1,0 +1,21 @@
+{
+  "created_utc": "2026-10-23T16:19:24+00:00",
+  "source": "FRED CSV",
+  "downloaded_on": "2026-10-23",
+  "fred_series": {
+    "credit_spread": "BAA10Y"
+  },
+  "requested_end": "2026-10-23",
+  "files": {
+    "macro": {
+      "file": "macro.parquet",
+      "sha256": "3b49eee7a9fdc3ee33e5ca24ba110f80b3f92285a1e433ce405b51340cb8b4a6",
+      "rows": 6733,
+      "columns": [
+        "credit_spread"
+      ],
+      "first": "2001-01-01",
+      "last": "2026-10-21"
+    }
+  }
+}

@@ -93,3 +93,19 @@ def build_snapshot(cfg: dict[str, Any], out_dir: str | Path | None = None,
         "fred_series": dcfg["fred"],
     }
     return write_snapshot({"prices": prices, "taiwan_listed": taiwan, "fred": fred}, out_dir, meta)
+
+
+def build_macro_snapshot(cfg: dict[str, Any], out_dir: str | Path | None = None,
+                         end: str | None = None) -> Path:
+    """Download the macro series used by the regime models (e.g. credit spreads) into their own snapshot.
+
+    Kept separate from the market-data snapshot, so adding a macro series
+    never changes the prices every earlier result was built on.
+    """
+    mcfg = cfg["macro"]
+    today = date.today().isoformat()
+    end = end or today
+    out_dir = Path(out_dir) if out_dir else Path("data/macro") / today
+    fred = download_fred(mcfg["fred"], mcfg.get("start", cfg["data"]["start"]), end)
+    meta = {"source": "FRED CSV", "downloaded_on": today, "fred_series": mcfg["fred"], "requested_end": end}
+    return write_snapshot({"macro": fred}, out_dir, meta)
