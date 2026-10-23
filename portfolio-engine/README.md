@@ -14,7 +14,7 @@ what can go wrong, is in [HOW_IT_WORKS.md](HOW_IT_WORKS.md).
 |---|---|---|
 | 1 | Data snapshots, TWD returns, walk-forward backtest with costs, three benchmarks | Done; run on real data |
 | 2 | Five allocation methods under three client risk profiles, cross-checked against PyPortfolioOpt / Riskfolio-Lib | Done; run on real data |
-| 3 | Stress tests, risk decomposition, CVaR, Monte Carlo goal probabilities, hold-out | Not started |
+| 3 | Stress tests, risk decomposition, CVaR variant, Monte Carlo goal probabilities | Done; run on real data |
 
 ## Layout
 
@@ -25,14 +25,14 @@ src/portfolio_engine/
   estimators/            Ledoit-Wolf covariance, historical means, Black-Litterman
   allocation/            benchmarks, risk profiles, the five methods, shared cvxpy solver
   backtest/              cost model, walk-forward engine, metrics, experiment runner
-  risk/                  Phase 3
+  risk/                  stress tests, risk decomposition, Monte Carlo goals, analysis runner
 notebooks/               one Colab notebook per phase
 tests/                   pytest, all on synthetic data
 ```
 
 ## Running it
 
-In Colab, open `notebooks/01_data_and_baseline.ipynb` (then `02_allocation_methods.ipynb`), set `DOWNLOAD = True`
+In Colab, open `notebooks/01_data_and_baseline.ipynb` (then `02_allocation_methods.ipynb` and `03_risk_and_goals.ipynb`), set `DOWNLOAD = True`
 for the first run, and keep the snapshot folder it writes (commit it or copy
 it to Drive). Every later run reads that frozen snapshot.
 
@@ -100,4 +100,56 @@ What the tables say:
 - **The profile does much of the work:** risk parity and HRP were moved
   7-44% of the portfolio, on average, to fit the profile limits.
 
-Hold-out (23 Oct 2024 – 22 Oct 2026): [RESULT], opened once at the end of Phase 3.
+### Phase 3: risk and goals
+
+From `notebooks/03_risk_and_goals.ipynb` (config `847159c84c0e`). Today's
+portfolios are those chosen at the last quarter-end before the hold-out
+(30 Sep 2024), with the 3-year window.
+
+**Worst fall when today's weights are replayed through past crises (TWD)**
+
+| Portfolio (today's weights) | 2008 GFC | 2011 euro | 2013 taper | 2020 COVID | 2022 inflation |
+|---|---|---|---|---|---|
+| Conservative: min-CVaR | -5.3% | -1.8% | -4.0% | -4.7% | -4.6% |
+| Conservative: risk parity | -10.7% | -2.1% | -5.0% | -8.5% | -8.0% |
+| Balanced: risk parity | -19.0% | -3.6% | -6.8% | -13.4% | -13.2% |
+| Balanced: mean-variance | -31.8% | -9.3% | -4.6% | -18.6% | -10.5% |
+| Growth: Black-Litterman | -29.0% | -7.8% | -7.3% | -19.6% | -14.3% |
+| 60/40 | -26.5% | -6.7% | -7.6% | -16.7% | -16.8% |
+| 100% Taiwan | -61.7% | -25.8% | -10.6% | -26.5% | -29.0% |
+
+**Chance of reaching the goal (10,000 block-bootstrap paths of each portfolio's walk-forward returns after costs)**
+
+| Client (goal) | Equal weight | Mean-variance | Black-Litterman | Risk parity | HRP | Min-CVaR | 60/40 |
+|---|---|---|---|---|---|---|---|
+| Conservative (NT$1.7M in 5 yrs) | 88% | 85% | 85% | 90% | 90% | 89% | 86% |
+| Balanced (NT$3M in 10 yrs) | 78% | 74% | 79% | 83% | 81% | 79% | 80% |
+| Growth (NT$12M in 30 yrs) | 51% | 63% | 60% | 56% | 53% | 68% | 46% |
+
+What the analysis says:
+
+- **The CVaR variant was the only method that kept a conservative client
+  inside the -10% loss limit**: worst walk-forward drawdown -6.0% (3-year
+  window) and -5.9% (5-year), and at most -5.3% in every replayed crisis.
+  It gave up return for it (3.3% a year, Sharpe 0.54).
+- **The conservative profile is internally inconsistent.** Its 7% volatility cap
+  implies a 1-in-20 bad year of about 11.5% (1.645 x 7%), already beyond
+  the client's own -10% limit. A calibration change is tested in Phase 4.
+- **Money is not risk.** 60/40 has 60% of its money in equities and 75% of its
+  volatility from them; balanced mean-variance 60% and 96%.
+- **Shocks:** a 2-point rise in US rates costs up to -9.8% (60/40); if every risky
+  sleeve moved together (correlation 0.8), a 1-in-20 bad year for the conservative
+  portfolios would be -11.0% to -16.1%, all beyond their limit.
+- **Goals:** conservative and balanced clients reach their goals in 74-90% of
+  simulated futures whatever the method; the 30-year growth client is where the
+  choice matters (46% with 60/40, 63% mean-variance, 68% min-CVaR). For the balanced
+  client with risk parity, NT$2,000 more a month raises the odds from 83%
+  to 94%, two more years to 98%.
+- **Model choice matters in the tail.** For the growth client, the chance of a
+  fall beyond -30% is 23%-56% with the bootstrap but 7%-24% with a fitted
+  Student-t: resampling whole years keeps crashes clustered; a fitted distribution
+  spreads them out. Both are reported.
+- **Statistics:** 3 of the 72 Sharpe comparisons (now including min-CVaR) are
+  "significant" at 90%, but about 7 would be by chance alone. Not evidence of an edge.
+
+Hold-out (23 Oct 2024 – 22 Oct 2026): [RESULT], opened once after Phase 4, when every choice is frozen.

@@ -96,9 +96,11 @@ def run_risk_analysis(cfg: dict[str, Any], data: MarketData,
                 continue
             monthly = metrics.monthly(results[(window, name)].returns)
             sim = simulate_goal(monthly, client, mc, seed=cfg.get("seed", 0))
-            fans[(profile, method)] = sim["fan"]
+            # Keep the full run name ("growth:hrp", "sixty_forty"): the profile's equal-weight
+            # method and the equal-weight benchmark are different portfolios.
+            fans[(profile, name)] = sim["fan"]
             for kind in ("bootstrap", "student_t"):
-                goal_rows.append({"client": profile, "portfolio": method, "simulation": kind, **sim[kind]})
+                goal_rows.append({"client": profile, "portfolio": name, "simulation": kind, **sim[kind]})
     goals = pd.DataFrame(goal_rows).set_index(["client", "portfolio", "simulation"])
 
     return {"as_of": as_of, "weights": weights, "risk_summary": risk_summary, "decomposition": decomp,

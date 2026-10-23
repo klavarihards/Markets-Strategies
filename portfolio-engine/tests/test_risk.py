@@ -197,5 +197,7 @@ def test_risk_analysis_end_to_end(cfg3):
     # Each client is simulated with their own profile's six methods plus the three benchmarks, two ways.
     assert len(a["goals"]) == 3 * (6 + 3) * 2
     assert a["goals"]["p_reach_goal"].between(0, 1).all()
+    assert a["goals"].index.is_unique                       # benchmark 1/N and the profile's 1/N stay apart
+    assert ("growth", "growth:equal_weight") in a["fans"] and ("growth", "equal_weight") in a["fans"]
     for d in a["decomposition"].values():
         assert d["share_of_volatility"].sum() == pytest.approx(1) and d["share_of_cvar"].sum() == pytest.approx(1)

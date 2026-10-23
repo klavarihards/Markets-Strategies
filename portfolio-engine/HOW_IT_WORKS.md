@@ -463,7 +463,148 @@ best answer:
 
 ---
 
-## 16. Coming next
+## 16. CVaR, and the CVaR variant (Phase 3)
 
-- **Phase 3:** stress tests, risk decomposition, CVaR, and Monte Carlo
-  goal probabilities; then the one-time hold-out evaluation.
+**Value-at-risk (VaR)** answers "what loss do I exceed on my worst 5% of
+days?" It says where the bad tail *starts*. **Conditional value-at-risk
+(CVaR)** answers "on those worst 5% of days, what is the *average* loss?"
+It says how bad the tail is inside. Two portfolios can share a VaR while
+one of them has a much nastier tail; CVaR tells them apart, which is why it
+is the main tail measure here. It is reported for days and for months.
+
+**The CVaR variant** (`min_cvar`) is a sixth method aimed at conservative
+clients: the portfolio, inside the profile limits, whose historical CVaR
+over the estimation window is as small as possible. It uses the real daily
+returns as scenarios, so crashes in the data count as they happened, with
+no bell-curve assumption.
+
+**How it is solved.** CVaR is not a smooth formula of the weights, but
+Rockafellar and Uryasev (2000) showed that
+
+```
+CVaR = min over z of [ z + average(max(loss − z, 0)) / (1 − alpha) ]
+```
+
+where `z` turns out to be the VaR. With one helper variable per day for
+`max(loss − z, 0)`, this is a **linear programme**, which solvers handle
+exactly. **Checked against:** Riskfolio-Lib's CVaR minimisation (agreement
+to about 1e-10), and it beats 500 random portfolios on the same data.
+
+**What can go wrong:** it is only as good as the history in the window. A
+3-year window without a crash has a mild tail, and the method will happily
+hold whatever was calm recently.
+
+---
+
+## 17. Where the risk comes from: risk decomposition
+
+A portfolio that looks diversified by weight can get most of its risk from
+one place. Two decompositions, each adding up exactly to the total:
+
+- **Share of volatility:** sleeve i contributes `w_i (Σw)_i / w'Σw`, its
+  weight times how much it moves with the whole portfolio.
+- **Share of CVaR:** on the portfolio's worst 5% of days, how much of the
+  average loss came from each sleeve: `w_i × (sleeve i's average return on
+  those days)`. Because the portfolio's return each day is the sum of the
+  weighted sleeve returns, the pieces add up to the CVaR exactly.
+
+The notebook shows, for each portfolio, the share of **money** in equities
+next to the share of **risk** from equities. The gap is usually large,
+because equities are three to four times as volatile as intermediate bonds.
+
+---
+
+## 18. Stress tests
+
+**Historical replay.** Today's portfolio (the last quarter-end before the
+hold-out) is held, *without rebalancing*, through five real crises:
+
+| Scenario | Period | What it tests |
+|---|---|---|
+| Global financial crisis | Oct 2007 – Mar 2009 | Equity crash, flight to Treasuries |
+| Euro debt crisis | 2011 | Contagion, correlation spikes |
+| Taper tantrum | May – Sep 2013 | Rising rates hurting bonds |
+| COVID crash | Feb – Mar 2020 | Fast, deep fall and recovery |
+| 2022 inflation shock | 2022 | Stocks and bonds falling together |
+
+Reported: total return over the episode, the worst fall inside it, and how
+many months it took to get back to the starting value. The worst fall is
+compared with the client's maximum acceptable loss. Separately, the
+notebook shows what the walk-forward portfolios *actually* did in each
+crisis their backtest covered.
+
+**Hypothetical shocks**, applied instantly to today's weights:
+
+- *Taiwan equities −30% with TWD weakening 10%.* A weaker TWD makes every
+  USD-priced asset worth 10% more in TWD, which cushions a diversified
+  client and does nothing for a 100%-Taiwan one.
+- *US rates +2 percentage points.* A bond fund with duration D loses about
+  D × 2%: roughly −34% for long Treasuries (duration about 17) and −15% for
+  intermediate bonds (about 7.5). The durations are approximations in the
+  config.
+- *Gold −20%.*
+- *Correlations rise to 0.8.* Not a price move but a risk change: every
+  pair of risky sleeves suddenly moves together, the situation in which
+  diversification fails. Reported as a 1-in-20 bad year (1.645 × annual
+  volatility under a normal approximation), next to the same figure with
+  normal correlations.
+
+**What can go wrong:** history is one sample path. A replay says what
+these weights would have done in *that* crisis, not in the next one. The
+hypothetical shocks are instantaneous and ignore second-round effects
+(a Taiwan crash would probably also hit US equities).
+
+---
+
+## 19. Goal probabilities: Monte Carlo
+
+The client's real question is "will I get there?" For each hypothetical
+client (5, 10 and 30 years; amounts in the config) and each portfolio
+option, 10,000 futures are simulated month by month:
+
+1. **Future monthly returns**, two ways, both reported:
+   - *Block bootstrap.* The portfolio's own walk-forward monthly returns
+     after costs are cut into 12-month blocks and glued together in random
+     order. Real crashes and recoveries are kept, just re-ordered.
+   - *Student-t.* Random monthly returns with the same mean and volatility
+     as that history, but from a fat-tailed distribution (5 degrees of
+     freedom), so extreme months happen more often than a bell curve
+     allows. *Antithetic variates* (from the option pricer in
+     `monte-carlo/Monte_Carlo.ipynb`): every random draw is also used
+     mirrored, which cancels part of the simulation noise for free.
+2. **Wealth:** each month the contribution goes in and the pot earns that
+   month's return: `W[t+1] = (W[t] + contribution) × (1 + r)`. With a
+   constant return this reproduces the annuity formula exactly (tested).
+3. **Count:** the share of futures that end at or above the goal.
+
+Also reported: the median and the 5th–95th percentile of final wealth;
+the chance that the investments fall further than the client's loss limit
+at some point (measured on returns, because contributions would hide
+losses in the wealth figure); the bad-case time to reach the goal (by when
+90% of futures have got there); and the probability with NT$2,000 more a
+month or two more years. All variants reuse the same random draws
+("common random numbers"), so their differences come from the change, not
+from noise. The random seed is fixed in the config.
+
+**What can go wrong**
+- Both methods assume the future looks like 2008–2024 rearranged. That
+  period includes a long bond bull market that cannot repeat from today's
+  starting yields, so bond-heavy portfolios may look better than they will
+  be.
+- Amounts are nominal: inflation is not modelled, so NT$3 million in 10
+  years buys less than NT$3 million today.
+- The probability is only as good as the client's inputs: a missed
+  contribution or an early withdrawal changes everything, and life events
+  are the advisor's job, not the model's.
+
+---
+
+## 20. The hold-out evaluation
+
+The last cell of notebook 03 opens the final two years of data once,
+after every method and setting has been frozen. The walk-forward run
+simply continues into the hold-out with the same rules, so the portfolio on
+its first day is exactly the one the development run held. Only the
+hold-out dates are summarised. Opening it is logged with a timestamp in
+`results/holdout_log.jsonl`. If anything is changed after that, the
+hold-out is spent and can no longer be called out of sample.

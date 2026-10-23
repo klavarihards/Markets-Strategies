@@ -125,7 +125,7 @@ Carlo notebook.
 
 ---
 
-### 7. Goal-Based Multi-Asset Portfolio Engine (in progress: phases 1-2 of 5)
+### 7. Goal-Based Multi-Asset Portfolio Engine (in progress: phases 1-3 of 5)
 **Folder:** `portfolio-engine/`
 
 A research engine for the question a wealth client asks: what should I hold,
@@ -158,6 +158,12 @@ Oct 2024; the last two years are still locked as a hold-out):**
 - The conservative client's -10% loss limit was breached by every method in
   both windows, and the growth client's -30% limit by every method in the
   3-year window, which includes 2008
+- Phase 3 adds stress tests, risk decomposition, a CVaR-minimising method and
+  Monte Carlo goal probabilities: the CVaR method was the only one to keep a
+  conservative client within -10% (worst walk-forward drawdown -6.0%); the
+  conservative profile itself turned out inconsistent (its 7% volatility cap
+  implies a 11.5% bad year); a 30-year growth client reaches the goal in
+  46% of simulated futures with 60/40 and 68% with the best method
 
 **Limitations so far:** research uses long-history US-listed proxies, not
 the Taiwan-listed funds a client would hold; cash is modelled with the US
