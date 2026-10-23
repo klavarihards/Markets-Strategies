@@ -91,3 +91,19 @@ def test_sleeve_can_be_marked_as_local_currency(cfg, frames):
     pd.testing.assert_series_equal(b.returns["cash"], b.returns_usd["cash"])   # no FX on cash
     assert not a.returns["cash"].equals(a.returns_usd["cash"])
     pd.testing.assert_series_equal(a.returns["gold"], b.returns["gold"])      # others unchanged
+
+
+def test_latest_resolves_to_newest_dated_snapshot(tmp_path, frames):
+    from portfolio_engine.data import find_snapshot
+    root = tmp_path / "snapshots"
+    assert find_snapshot(root / "latest") is None
+    with pytest.raises(FileNotFoundError, match="Run the download step"):
+        read_snapshot(root / "latest")
+    small = {k: v.iloc[:300] for k, v in frames.items()}
+    write_snapshot(small, root / "2026-01-05")
+    write_snapshot(small, root / "2026-10-23")
+    assert find_snapshot(root / "latest") == root / "2026-10-23"
+    assert find_snapshot(root / "2026-01-05") == root / "2026-01-05"
+    assert find_snapshot(root / "2025-12-31") is None          # a named folder never falls back
+    loaded, _ = read_snapshot(root / "latest")
+    assert len(loaded["prices"]) == 300

@@ -65,10 +65,38 @@ def write_snapshot(frames: dict[str, pd.DataFrame], out_dir: str | Path,
     return out
 
 
+def find_snapshot(path: str | Path) -> Path | None:
+    """The snapshot folder ``path`` refers to, or ``None`` if there is none yet.
+
+    Snapshots live in dated folders (``data/snapshots/2026-10-23``). A path
+    ending in ``latest`` means "the newest dated snapshot next to it", so
+    the config does not need editing after every download.
+    """
+    p = Path(path)
+    if (p / MANIFEST).exists():
+        return p
+    if p.name == "latest" and p.parent.exists():
+        dated = sorted(d for d in p.parent.iterdir() if d.is_dir() and (d / MANIFEST).exists())
+        return dated[-1] if dated else None
+    return None
+
+
+def resolve_snapshot(path: str | Path) -> Path:
+    """Like :func:`find_snapshot`, but explain what to do when no snapshot exists."""
+    found = find_snapshot(path)
+    if found is None:
+        raise FileNotFoundError(
+            f"No data snapshot found at {path!s}. Run the download step first "
+            "(notebook 01, which downloads automatically when no snapshot exists), "
+            "or point data.snapshot_dir at an existing snapshot folder."
+        )
+    return found
+
+
 def read_snapshot(snapshot_dir: str | Path,
                   verify: bool = True) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
     """Load every file listed in the manifest, refusing any whose hash changed."""
-    d = Path(snapshot_dir)
+    d = resolve_snapshot(snapshot_dir)
     manifest = json.loads((d / MANIFEST).read_text())
     frames = {}
     for name, info in manifest["files"].items():
