@@ -105,3 +105,24 @@ def save_run(results: dict[tuple[float, str], BacktestResult], summary: pd.DataF
     }
     (run_dir / "run.json").write_text(json.dumps(record, indent=2, default=str))
     return run_dir
+
+
+def evaluate_holdout(cfg: dict[str, Any], allocators: dict[str, Allocator] | None = None,
+                     snapshot_dir: str | Path | None = None, out_dir: str | Path = "results"):
+    """The final, one-time evaluation on the locked hold-out period.
+
+    Loads the full snapshot (this is the only place in the package that
+    unlocks it, and the unlock is logged), runs the same walk-forward
+    backtest over all dates, and summarises only the hold-out dates. Because
+    the backtest only ever looks backwards, the portfolio on the first
+    hold-out day is exactly the one the development run would have held.
+
+    Call this once, after every method and setting has been frozen.
+    """
+    from ..data.loader import load_market_data
+
+    data = load_market_data(cfg, snapshot_dir=snapshot_dir, unlock_holdout=True, log_dir=out_dir)
+    results = run_experiment(cfg, data, allocators)
+    summary = summary_table(results, data, cfg, period=(data.holdout_start, None))
+    run_dir = save_run(results, summary, cfg, data, out_dir)
+    return summary, results, run_dir

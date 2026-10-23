@@ -41,3 +41,13 @@ def test_costs_lower_returns(cfg, data):
     free = run_experiment(cfg, data, costs=CostModel.zero(list(data.returns.columns)))
     key = (3, "sixty_forty")
     assert (1 + res[key].returns).prod() < (1 + free[key].returns).prod()
+
+
+def test_evaluate_holdout_reports_only_holdout_dates(cfg, tmp_path):
+    from portfolio_engine.backtest import evaluate_holdout
+    snap = write_snapshot(make_synthetic_frames(end="2015-12-31", seed=11), tmp_path / "snap")
+    summ, res, run_dir = evaluate_holdout(cfg, snapshot_dir=snap, out_dir=tmp_path / "final")
+    rec = json.loads((run_dir / "run.json").read_text())
+    assert rec["includes_holdout"] is True
+    assert (summ["start"] >= pd.Timestamp(rec["holdout_start"]).date()).all()
+    assert (tmp_path / "final" / "holdout_log.jsonl").exists()
