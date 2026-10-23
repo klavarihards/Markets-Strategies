@@ -3,3 +3,6 @@ __pycache__/
 .pytest_cache/
 # Run outputs are rebuilt from config + snapshot; keep them out of git.
 results/
+# Downloaded market data snapshots: kept out of the public repo until it is decided
+# whether to publish them (Yahoo's terms restrict redistribution). Remove this line to commit one.
+data/snapshots/
