@@ -20,7 +20,10 @@ results come from the method, not from different inputs.
    giving less to riskier groups. No matrix inversion, so it is stable when
    assets are highly correlated.
 
-Methods 2 and 3 have the profile limits inside their optimisation. Methods
+Phase 3 adds a CVaR variant (``MinCVaR``): the portfolio with the smallest
+average loss on its worst days, aimed at conservative clients.
+
+Methods 2, 3 and the CVaR variant have the profile limits inside their optimisation. Methods
 1, 4 and 5 compute their own weights first and are then moved to the
 nearest portfolio that satisfies the profile (see ``optimizer.py``).
 """
@@ -233,8 +236,27 @@ class HierarchicalRiskParity(ProfileMethod):
         return self._nearest(raw.to_numpy(), cov)
 
 
+class MinCVaR(ProfileMethod):
+    """The CVaR variant: lowest average loss on the worst days, inside the profile.
+
+    Uses the actual daily returns of the estimation window as scenarios, so
+    fat tails and crashes in the data count directly, with no assumption of
+    a bell curve. Uses no expected returns.
+    """
+
+    method = "min_cvar"
+
+    def __init__(self, *args, alpha: float = 0.95, **kw):
+        super().__init__(*args, **kw)
+        self.alpha = alpha
+
+    def weights(self, history, cov):
+        return solve(cov.to_numpy(), list(cov.index), self.asset_class, self.profile, "min_cvar",
+                     scenarios=history[list(cov.index)].to_numpy(), alpha=self.alpha, vol_cap=self.vol_cap)
+
+
 METHODS = {c.method: c for c in (EqualWeightMethod, MeanVariance, BlackLitterman,
-                                  RiskParity, HierarchicalRiskParity)}
+                                  RiskParity, HierarchicalRiskParity, MinCVaR)}
 
 
 def build_method_allocators(cfg: dict[str, Any]) -> dict[str, ProfileMethod]:

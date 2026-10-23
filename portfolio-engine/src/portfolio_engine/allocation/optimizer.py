@@ -5,6 +5,12 @@ All methods end in the same kind of convex problem, solved with cvxpy:
 - **Utility** (mean-variance, Black-Litterman): choose ``w`` to maximise
   ``w' mu - (lambda / 2) w' Sigma w``: expected return minus a penalty for
   variance. ``lambda`` (risk aversion) sets the exchange rate between them.
+- **Min-CVaR**: choose ``w`` to minimise the average loss on the worst
+  ``1 - alpha`` share of historical days. CVaR is not a smooth formula of
+  the weights, but Rockafellar and Uryasev (2000) showed it equals the
+  minimum over a threshold ``z`` of ``z + mean(max(loss - z, 0)) / (1 - alpha)``,
+  which becomes a linear programme with one helper variable per day. At the
+  optimum, ``z`` is the VaR and the objective is the CVaR.
 - **Nearest** (equal weight, risk parity, HRP): these methods pick weights
   by their own rule, without the profile in mind. The solver then finds the
   portfolio *closest* to those weights (smallest sum of squared differences)
@@ -47,8 +53,11 @@ def _chol(cov: np.ndarray) -> np.ndarray:
 def solve(cov: np.ndarray, sleeves: list[str], asset_class: dict[str, str],
           profile: RiskProfile | None, kind: str, mu: np.ndarray | None = None,
           risk_aversion: float | None = None, target: np.ndarray | None = None,
+          scenarios: np.ndarray | None = None, alpha: float = 0.95,
           vol_cap: bool = True) -> tuple[np.ndarray, dict[str, Any]]:
-    """Solve a ``"utility"`` or ``"nearest"`` problem under the profile.
+    """Solve a ``"utility"``, ``"min_cvar"`` or ``"nearest"`` problem under the profile.
+
+    ``scenarios`` (days x sleeves returns) and ``alpha`` are used by ``"min_cvar"``.
 
     Returns the weights and a small dict of diagnostics.
     """
@@ -64,6 +73,12 @@ def solve(cov: np.ndarray, sleeves: list[str], asset_class: dict[str, str],
             cons += [total >= lo, total <= hi]
     if kind == "utility":
         obj = cp.Maximize(mu @ w - 0.5 * risk_aversion * cp.sum_squares(L.T @ w))
+    elif kind == "min_cvar":
+        R = np.asarray(scenarios, float)
+        z = cp.Variable()                          # the VaR threshold
+        excess = cp.Variable(len(R), nonneg=True)  # loss beyond the threshold, per day
+        cons = cons + [excess >= -R @ w - z]
+        obj = cp.Minimize(z + cp.sum(excess) / ((1 - alpha) * len(R)))
     elif kind == "nearest":
         # Minimising the distance itself (not its square) gives the same answer, but keeps
         # the objective well scaled near the optimum, so the solver is accurate to ~1e-8.
