@@ -27,6 +27,9 @@ sleeves:
   intermediate_bond: {proxy: {IEF: 1.0},           asset_class: bond}
   gold:              {proxy: {GLD: 1.0},           asset_class: gold}
   cash:              {proxy: cash_rate,            asset_class: cash}
+  # Cash is a US T-bill converted into TWD, so it carries USD/TWD risk. Adding
+  # `currency: TWD` to the cash sleeve treats it as a TWD deposit instead (no FX
+  # risk, but still the US T-bill rate, which has usually been above TWD rates).
 
 # Frictions, as fractions (0.001 = 0.1%). The client is assumed to implement
 # with Taiwan-listed ETFs bought through a Taiwan broker.

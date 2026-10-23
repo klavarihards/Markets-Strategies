@@ -125,6 +125,10 @@ def load_market_data(cfg: dict[str, Any], snapshot_dir: str | Path | None = None
 
     base = cfg.get("base_currency", "TWD").upper()
     ret = to_base_currency(ret_usd, fx) if base == "TWD" else ret_usd.copy()
+    # A sleeve marked `currency: TWD` is treated as already in the client's currency:
+    # no FX conversion (e.g. cash modelled as a TWD deposit, see HOW_IT_WORKS.md).
+    local = [k for k, v in cfg["sleeves"].items() if str(v.get("currency", "USD")).upper() == base]
+    ret[local] = ret_usd[local]
 
     valid = ret.notna().all(axis=1) & fx.notna() & rf.notna()
     first = valid.idxmax()

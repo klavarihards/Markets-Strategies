@@ -81,3 +81,13 @@ def test_returns_are_clean(data):
     assert list(data.returns.columns) == list(data.asset_class)
     assert data.returns.index.is_monotonic_increasing
     assert np.isfinite(data.returns.values).all()
+
+
+def test_sleeve_can_be_marked_as_local_currency(cfg, frames):
+    from portfolio_engine.config import override
+    local = override(cfg, **{"sleeves.cash": {**cfg["sleeves"]["cash"], "currency": "TWD"}})
+    a = load_market_data(cfg, frames=frames)
+    b = load_market_data(local, frames=frames)
+    pd.testing.assert_series_equal(b.returns["cash"], b.returns_usd["cash"])   # no FX on cash
+    assert not a.returns["cash"].equals(a.returns_usd["cash"])
+    pd.testing.assert_series_equal(a.returns["gold"], b.returns["gold"])      # others unchanged
