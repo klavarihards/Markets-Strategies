@@ -134,3 +134,40 @@ odds rise from 83% to 94% with NT$2,000 more a month.
 **Trials so far:** 126 development backtests in the registry (including
 the superseded first runs; the Phase 3 config re-runs the Phase 2 methods
 under a new hash, so distinct strategies are fewer).
+
+---
+
+## Pre-registration for Phase 4 and the final choice (written before any Phase 4 run)
+
+These rules are fixed *before* the overlays and robustness runs, and
+committed, so the choices that follow cannot be fitted to the results.
+
+**Overlays tested** (each on every profile x method, 3-year window,
+monthly overlay checks, all costs):
+`core` (Phase 3 portfolio), `+vol_target` (GARCH), `+regime_rule`,
+`+regime_hmm`, `+tilt` (Black-Litterman momentum views, capped at ±5 points
+from the core), and `+all` (tilt switched off in the stressed regime,
+regime filter with the *rule* model, the simpler of the two, then volatility
+targeting).
+
+**Rule 1: keep an overlay for a profile only if**, for the median of that
+profile's six methods, compared with the core portfolio, (a) the maximum
+drawdown or the monthly 95% CVaR improves by at least 10% (relative), and
+(b) the Sharpe ratio falls by no more than 0.05, all after costs. Otherwise
+the overlay is reported and dropped.
+
+**Rule 2: the method recommended for each profile** is chosen among the
+methods (with kept overlays) whose 3-year-window Sharpe ratio is within 0.05
+of the best for that profile: first those that stayed within the client's
+maximum loss in the walk-forward backtest; among them the lowest monthly
+CVaR; if none stayed within the limit, the smallest maximum drawdown. Ties
+go to the simpler method (fewer estimated inputs).
+
+**Robustness settings** (reported, not used for selection): rebalancing
+monthly / quarterly / annually; risk aversion 1, 2.5, 5, 10 (mean-variance
+and Black-Litterman); single-sleeve cap 30%, 40%, 50%; and a calibrated
+conservative profile with a 6% volatility cap (1.645 x 6% ≈ 9.9%, inside
+the -10% limit), chosen from that arithmetic alone.
+
+**The hold-out** is opened once, after Rules 1 and 2 have produced the
+frozen configuration, for every method, benchmark and the frozen choice.
