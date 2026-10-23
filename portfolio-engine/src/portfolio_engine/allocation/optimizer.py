@@ -54,10 +54,13 @@ def solve(cov: np.ndarray, sleeves: list[str], asset_class: dict[str, str],
           profile: RiskProfile | None, kind: str, mu: np.ndarray | None = None,
           risk_aversion: float | None = None, target: np.ndarray | None = None,
           scenarios: np.ndarray | None = None, alpha: float = 0.95,
-          vol_cap: bool = True) -> tuple[np.ndarray, dict[str, Any]]:
+          vol_cap: bool = True, lower: np.ndarray | None = None,
+          upper: np.ndarray | None = None) -> tuple[np.ndarray, dict[str, Any]]:
     """Solve a ``"utility"``, ``"min_cvar"`` or ``"nearest"`` problem under the profile.
 
     ``scenarios`` (days x sleeves returns) and ``alpha`` are used by ``"min_cvar"``.
+    ``lower`` / ``upper`` add per-sleeve bounds (used by the tactical tilt to
+    stay within a few points of the strategic portfolio).
 
     Returns the weights and a small dict of diagnostics.
     """
@@ -71,6 +74,10 @@ def solve(cov: np.ndarray, sleeves: list[str], asset_class: dict[str, str],
             lo, hi = profile.bounds[g]
             total = cp.sum(w[idx]) if idx else 0
             cons += [total >= lo, total <= hi]
+    if lower is not None:
+        cons.append(w >= lower)
+    if upper is not None:
+        cons.append(w <= upper)
     if kind == "utility":
         obj = cp.Maximize(mu @ w - 0.5 * risk_aversion * cp.sum_squares(L.T @ w))
     elif kind == "min_cvar":
