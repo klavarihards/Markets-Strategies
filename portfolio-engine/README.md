@@ -12,8 +12,8 @@ what can go wrong, is in [HOW_IT_WORKS.md](HOW_IT_WORKS.md).
 
 | Phase | Content | Status |
 |---|---|---|
-| 1 | Data snapshots, TWD returns, walk-forward backtest with costs, three benchmarks | Built; awaiting first run on real data |
-| 2 | Five allocation methods under three client risk profiles, cross-checked against PyPortfolioOpt / Riskfolio-Lib | Built; awaiting first run on real data |
+| 1 | Data snapshots, TWD returns, walk-forward backtest with costs, three benchmarks | Done; run on real data |
+| 2 | Five allocation methods under three client risk profiles, cross-checked against PyPortfolioOpt / Riskfolio-Lib | Done; run on real data |
 | 3 | Stress tests, risk decomposition, CVaR, Monte Carlo goal probabilities, hold-out | Not started |
 
 ## Layout
@@ -45,8 +45,54 @@ pytest
 
 ## Results
 
-Results are added only after a run on real data; every number will come from
-a saved run (`results/<config>_<hash>_<snapshot>/`).
+From the runs in `notebooks/01_data_and_baseline.ipynb` and
+`notebooks/02_allocation_methods.ipynb`: snapshot `570bdef9e8ea` (downloaded 2026-10-23), development data to 22 Oct 2024; hold-out (23 Oct 2024 – 22 Oct 2026) not yet opened. Config hashes `3e6527ffbfbb`
+(Phase 1) and `ff5ff6328895` (Phase 2). All figures in TWD, after costs.
 
-- Baselines (3-year window, after costs, TWD): [RESULT]
-- Five methods x three profiles, comparison and compliance tables: [RESULT]
+**Baselines, 3-year window (31 Dec 2007 – 22 Oct 2024)**
+
+| | Annual return | Volatility | Sharpe | Max drawdown | Cost drag / yr |
+|---|---|---|---|---|---|
+| Equal weight | 5.4% | 8.9% | 0.51 | -21.9% | 0.40% |
+| 60/40 | 5.9% | 11.3% | 0.47 | -28.9% | 0.41% |
+| 100% Taiwan equity | 8.2% | 23.6% | 0.41 | -58.1% | -0.16% |
+
+(The Taiwan cost drag is negative because the assumed 0050 fee is below EWT's.)
+
+**Five methods under three profiles, 3-year window: Sharpe (max drawdown)**
+
+| Profile | Equal weight | Mean-variance | Black-Litterman | Risk parity | HRP |
+|---|---|---|---|---|---|
+| Conservative | 0.53 (-13.7%) | 0.58 (-13.0%) | 0.39 (-14.3%) | 0.58 (-11.3%) | 0.58 (-10.5%) |
+| Balanced | 0.50 (-22.4%) | 0.53 (-25.4%) | 0.48 (-21.6%) | 0.55 (-18.3%) | 0.54 (-18.3%) |
+| Growth | 0.44 (-34.9%) | 0.46 (-36.4%) | 0.50 (-30.8%) | 0.47 (-33.1%) | 0.46 (-33.4%) |
+
+**5-year window (31 Dec 2009 – 22 Oct 2024)**
+
+| Profile | Equal weight | Mean-variance | Black-Litterman | Risk parity | HRP |
+|---|---|---|---|---|---|
+| Conservative | 0.61 (-10.4%) | 0.71 (-11.6%) | 0.54 (-10.5%) | 0.58 (-12.6%) | 0.56 (-11.6%) |
+| Balanced | 0.70 (-13.1%) | 0.81 (-17.3%) | 0.66 (-14.0%) | 0.68 (-13.2%) | 0.70 (-12.4%) |
+| Growth | 0.64 (-18.4%) | 0.76 (-21.8%) | 0.72 (-19.3%) | 0.67 (-18.2%) | 0.65 (-18.2%) |
+
+What the tables say:
+
+- **No method is distinguishable from the benchmarks.** None of the 60 Sharpe
+  differences against 1/N and 60/40 has a 90% bootstrap interval that excludes
+  zero; all gaps lie between -0.13 and +0.16.
+- **Mean-variance** has the highest Sharpe in every profile with the 5-year
+  window, but trades 27-61% of the portfolio a year (others: 9-20%). With the
+  3-year window its lead disappears.
+- **Risk parity and HRP** gave the smallest drawdowns for conservative and
+  balanced clients with the 3-year window, which includes 2008; with the
+  5-year window that advantage is gone.
+- **Black-Litterman without views** was the weakest for conservative clients
+  (Sharpe 0.39 and 0.54).
+- **Client limits:** the conservative -10% loss limit was breached by every
+  method in both windows; the growth -30% limit by every method in the 3-year
+  window. The volatility cap could not be met in 15-18% of quarters with the
+  3-year window and in 20-25% for growth with the 5-year window.
+- **The profile does much of the work:** risk parity and HRP were moved
+  11-45% of the portfolio, on average, to fit the profile limits.
+
+Hold-out (23 Oct 2024 – 22 Oct 2026): [RESULT], opened once at the end of Phase 3.
