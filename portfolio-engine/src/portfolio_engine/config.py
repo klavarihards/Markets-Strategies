@@ -18,11 +18,33 @@ import yaml
 
 
 def load_config(path: str | Path) -> dict[str, Any]:
-    """Read a YAML run configuration into a plain dictionary."""
+    """Read a YAML run configuration into a plain dictionary.
+
+    A config may start with ``extends: other.yaml`` to reuse another file and
+    only list what differs, e.g. Phase 2 reuses the Phase 1 data and cost
+    settings. The parent is read first and the child's keys are merged on top
+    (nested sections merge key by key; anything else is replaced).
+    """
+    path = Path(path)
     with open(path, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
+    parent = cfg.pop("extends", None)
+    if parent:
+        base = load_config(path.parent / parent)
+        base.pop("_source", None)
+        cfg = _deep_merge(base, cfg)
     cfg["_source"] = str(path)
     return cfg
+
+
+def _deep_merge(base: dict[str, Any], top: dict[str, Any]) -> dict[str, Any]:
+    out = copy.deepcopy(base)
+    for k, v in top.items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = copy.deepcopy(v)
+    return out
 
 
 def config_hash(cfg: dict[str, Any]) -> str:

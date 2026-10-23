@@ -1,0 +1,69 @@
+# Phase 2: the five allocation methods under the three client risk profiles.
+# Data, sleeves, costs and benchmarks are inherited from Phase 1.
+extends: phase1_baseline.yaml
+name: phase2_methods
+
+# Client risk profiles (suitability limits). Starting assumptions from the
+# project spec, not regulatory figures; to be calibrated and justified in the
+# write-up. Ranges are fractions of the portfolio.
+#   equity / bonds_cash / gold   hard limits on each group's total weight
+#   vol_band                     typical annual volatility; the upper end is used as an
+#                                ex-ante volatility cap where it can be met
+#   max_loss                     the loss the client says they can live with (reported, and
+#                                used by the Phase 3 drawdown checks)
+#   max_weight                   no single sleeve above this
+profiles:
+  conservative: {equity: [0.15, 0.35], bonds_cash: [0.55, 0.80], gold: [0.0, 0.10],
+                 vol_band: [0.04, 0.07], max_loss: -0.10, max_weight: 0.40}
+  balanced:     {equity: [0.40, 0.60], bonds_cash: [0.30, 0.50], gold: [0.0, 0.10],
+                 vol_band: [0.07, 0.11], max_loss: -0.20, max_weight: 0.40}
+  growth:       {equity: [0.65, 0.85], bonds_cash: [0.10, 0.30], gold: [0.0, 0.10],
+                 vol_band: [0.11, 0.16], max_loss: -0.30, max_weight: 0.40}
+
+# Which asset classes count towards each profile group.
+profile_groups:
+  equity: [equity]
+  bonds_cash: [bond, cash]
+  gold: [gold]
+
+methods:
+  # Shared estimation settings: every method that needs a covariance matrix
+  # uses the same shrunk estimate, so differences come from the method itself.
+  covariance: {estimator: ledoit_wolf, target: constant_correlation}
+  risk_aversion: 2.5          # one value for mean-variance and for Black-Litterman's implied returns
+                              # (He and Litterman's choice for the world market's risk aversion)
+  vol_cap: true               # cap ex-ante volatility at the profile's upper band when feasible
+
+  equal_weight: {}            # 1/N, then moved the minimum needed to satisfy the profile
+
+  mean_variance: {}           # Markowitz on historical means and the shrunk covariance
+
+  black_litterman:
+    tau: 0.05                 # how uncertain the equilibrium returns are, relative to the covariance
+    # Neutral starting portfolio for reverse optimisation. ASSUMPTION: a rough
+    # global multi-asset market portfolio (about half equities, half bonds and
+    # cash, a small gold share, Taiwan near its ~2% share of world equity).
+    market_weights:
+      taiwan_equity: 0.02
+      us_equity: 0.28
+      intl_equity: 0.20
+      long_treasury: 0.15
+      intermediate_bond: 0.27
+      gold: 0.05
+      cash: 0.03
+    # Views (P, Q). None in Phase 2: the tactical views (momentum, valuation,
+    # the macro journal) are Phase 4. Format when used:
+    #   - {weights: {taiwan_equity: 1, us_equity: -1}, q: 0.02}   # Taiwan beats US by 2%/yr
+    views: []
+
+  risk_parity:
+    exclude_asset_classes: [cash]   # cash has almost no risk of its own; it is added only if the profile needs it
+
+  hrp:
+    linkage: single                 # as in Lopez de Prado (2016)
+    exclude_asset_classes: [cash]
+
+bootstrap:
+  n: 2000                     # resamples for Sharpe-difference confidence intervals
+  block_days: 21              # resample whole months so volatility clusters stay intact
+  ci: 0.90
