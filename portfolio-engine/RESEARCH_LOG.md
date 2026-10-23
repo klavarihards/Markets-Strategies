@@ -282,8 +282,8 @@ strong bull market: 100% Taiwan equity returned 42.3% a year.
 | 100% Taiwan equity | 42.3% | 27.6% | 1.27 | -23.5% | |
 
 **What held up:** every frozen portfolio stayed inside its client's loss
-limit and (for its own profile) volatility band; the conservative and
-balanced portfolios had the shallowest drawdowns of anything tested.
+limit and its profile's volatility band, with worst drawdowns of -5.2% to
+-10.0%.
 
 **What did not:**
 - **The cautious portfolios lagged a boom**, as their lower equity share
@@ -294,7 +294,7 @@ balanced portfolios had the shallowest drawdowns of anything tested.
   choice traded 64% of the portfolio a year, with a cost drag of 1.0% a year
   (development: 0.8%). Consistent with the finding that their benefit came
   from 2008.
-- **Mean-variance had the best hold-out Sharpe in every profile** (1.23-1.26),
+- **Mean-variance had the best hold-out Sharpe in every profile** (1.15-1.26),
   the method that looked most fragile in development. Black-Litterman without
   views had the worst (0.63-0.69). In a two-year trending market, historical
   means pointed the right way.
