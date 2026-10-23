@@ -1,0 +1,5 @@
+__pycache__/
+*.egg-info/
+.pytest_cache/
+# Run outputs are rebuilt from config + snapshot; keep them out of git.
+results/
