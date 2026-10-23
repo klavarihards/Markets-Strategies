@@ -107,3 +107,10 @@ def test_product_needs_the_holdout_to_have_been_evaluated(tmp_path):
     (tmp_path / "holdout_log.jsonl").write_text(json.dumps({"snapshot_id": dev.snapshot_id}) + "\n")
     full = load_market_data(cfg, snapshot_dir=snap, product=True)
     assert full.includes_holdout and full.returns.index[-1] > dev.returns.index[-1]
+
+
+def test_implementation_tracking_on_synthetic_data():
+    from portfolio_engine.product.implementation import tracking_report
+    rep = tracking_report(make_synthetic_frames(end="2014-12-31", seed=2))
+    # The synthetic 0050 is built as EWT in TWD plus small noise, so it must track closely.
+    assert rep["correlation"] > 0.95 and rep["tracking_error"] < 0.05 and rep["months"] > 100
