@@ -142,3 +142,49 @@ def summarize(r: pd.Series, rf: pd.Series | float = 0.0, benchmark: pd.Series | 
     if benchmark is not None:
         out["tracking_error"] = tracking_error(r, benchmark, ppy)
     return out
+
+
+def sharpe_difference_ci(r_a: pd.Series, r_b: pd.Series, rf: pd.Series | float = 0.0,
+                         n_boot: int = 2000, block: int = 21, ci: float = 0.90,
+                         seed: int = 0, ppy: int = PPY) -> dict[str, float]:
+    """Is method A's Sharpe ratio really higher than B's? A bootstrap confidence interval.
+
+    A Sharpe ratio from 15 years of data is uncertain by roughly +/-0.25,
+    so a gap of 0.05 between two methods can easily be luck. To see how
+    large the gap could plausibly be, we rebuild many alternative histories
+    by resampling the actual days, recompute both Sharpe ratios on each, and
+    look at the spread of their difference.
+
+    - Days are resampled in *blocks* of ``block`` consecutive days (a
+      circular block bootstrap), because volatile days cluster together;
+      resampling single days would make history look calmer than it was.
+    - A and B are resampled on the *same* days, so what they share (both
+      fell in 2008) cancels out and only their difference is tested.
+
+    If the interval contains zero, the data cannot tell the two apart.
+    """
+    ex = pd.DataFrame({"a": _excess(r_a, rf), "b": _excess(r_b, rf)}).dropna().to_numpy()
+    t = len(ex)
+    rng = np.random.default_rng(seed)
+    n_blocks = int(np.ceil(t / block))
+    last = t - (n_blocks - 1) * block                 # the final block is cut to fit t days
+    starts = rng.integers(0, t, size=(n_boot, n_blocks))
+    # Each resampled history is n_blocks blocks glued together, so its sum (and sum of
+    # squares) is the sum of its blocks' sums. Precompute every block's sums once instead
+    # of building every resampled history day by day.
+    wrap = np.vstack([ex, ex[:block]])
+    c1 = np.vstack([np.zeros((1, 2)), np.cumsum(wrap, axis=0)])
+    c2 = np.vstack([np.zeros((1, 2)), np.cumsum(wrap ** 2, axis=0)])
+    s = np.arange(t)
+    full1, full2 = c1[s + block] - c1[s], c2[s + block] - c2[s]
+    part1, part2 = c1[s + last] - c1[s], c2[s + last] - c2[s]
+    sum1 = full1[starts[:, :-1]].sum(axis=1) + part1[starts[:, -1]]
+    sum2 = full2[starts[:, :-1]].sum(axis=1) + part2[starts[:, -1]]
+    mean = sum1 / t
+    sd = np.sqrt(np.maximum(sum2 - t * mean ** 2, 0.0) / (t - 1))
+    sr = mean / sd * np.sqrt(ppy)
+    diffs = sr[:, 0] - sr[:, 1]
+    point = (ex[:, 0].mean() / ex[:, 0].std(ddof=1) - ex[:, 1].mean() / ex[:, 1].std(ddof=1)) * np.sqrt(ppy)
+    lo, hi = np.quantile(diffs, [(1 - ci) / 2, 1 - (1 - ci) / 2])
+    return {"sharpe_diff": float(point), "ci_low": float(lo), "ci_high": float(hi),
+            "share_boot_positive": float((diffs > 0).mean())}
