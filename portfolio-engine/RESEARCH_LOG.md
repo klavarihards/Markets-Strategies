@@ -309,3 +309,60 @@ client: tail-risk (CVaR) construction kept conservative and balanced clients
 inside their loss limits in every period tested, which no volatility-based
 method managed for conservative clients. Overlays helped in one crisis and
 cost money otherwise. Nothing was changed after this entry.
+
+---
+
+## Iteration 10: Phase 5, the product, and what driving it revealed
+
+**Built:** a six-question questionnaire (profile = the more cautious of
+risk capacity and risk tolerance), an advisor that runs each profile's
+frozen portfolio on all data (allowed only because the hold-out is logged as
+evaluated), a one-page PDF report (Jinja2 + xhtml2pdf, every figure from the
+engine), a FastAPI service, a Streamlit dashboard, Docker files and GitHub
+Actions CI (ruff + 96 tests). Results in `notebooks/05_product_demo.ipynb`
+and `reports/`.
+
+**Found by using the product rather than testing it**
+- *Charts missing and "nan%" in the first PDF*: xhtml2pdf ignores percentage
+  image widths, and the report quoted a crisis outside the data. Fixed
+  (explicit sizes; only crises fully inside the data are quoted).
+- *An unadjusted 4-for-1 split in Yahoo's 0050.TW history* (2014-01-02, a
+  -75% "day") made 0050 look like it fell 77%. Added `data/quality.py`:
+  split-like moves are repaired, other moves beyond Taiwan's price limit are
+  flagged (seven in Jan-Feb 2009, the first weeks of the series). After the
+  repair, 0050 vs EWT in TWD: correlation 0.92, tracking error 7.7% a year.
+- *Excluding a holding raised a client's odds* (47% to 56% for a
+  conservative client avoiding gold), because exclusions switched the goal
+  simulation to a different basis. Fixed: every client is simulated on
+  today's weights applied to market history minus the measured cost drag;
+  regression test added.
+
+**Docker:** no Docker daemon in the development sandbox, so the image was
+not built here. The recipe was verified instead: a clean virtualenv with a
+non-editable `pip install ".[product]"` and the image's file layout served
+`/health` and returned a 68 KB PDF from `/report`.
+
+## Final review (mentor's notes)
+
+**What makes this credible:** walk-forward only, with tests that scramble
+the future; frozen and hashed data; a hold-out locked first and opened once
+(logged, committed); decision rules committed before the runs they decided;
+every trial counted and the Sharpe ratio deflated; every optimiser checked
+against an established library; failures and bugs recorded here, not hidden.
+
+**What a sceptical reviewer would still push on**
+1. Three real crises in 22 years is a small sample for tail-risk claims.
+2. Proxies, not the Taiwan-listed funds, drive the research; cash earns the
+   US T-bill rate; cost, tax and duration inputs are approximate.
+3. The CVaR method's edge is in drawdowns, not Sharpe, and rests mainly on
+   2008, 2020 and 2022.
+4. The overlays were kept on the strength of one crisis and did nothing
+   useful in the hold-out; a production version would need a longer history
+   or a cost-aware rule before using them.
+5. The deflated Sharpe ratio treats 223 correlated trials as independent.
+
+**Next steps if continued:** Taiwan-listed fund data and real TWD deposit
+rates; more crises (longer proxy histories or other markets); spread and
+tax data from a broker; inflation-adjusted goals; threshold rebalancing
+(drift > 5 points) and contribution-first rebalancing, which the spec
+describes but this backtest does not model; a paper-trading log.

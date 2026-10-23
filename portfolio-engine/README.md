@@ -1,12 +1,23 @@
 # Goal-Based Multi-Asset Portfolio Engine
 
-Educational research project, not investment advice. Fund names are used only
-as liquid, representative Taiwan-listed instruments, not as recommendations.
+Educational research project, not investment advice. Clients are
+hypothetical; fund names are used only as liquid, representative
+Taiwan-listed instruments, not as recommendations.
 
-The engine builds portfolios for a hypothetical Taiwan-based client from seven
-building blocks, compares allocation methods walk-forward with costs and
-taxes, and reports the chance of reaching a goal. How each part works, and
-what can go wrong, is in [HOW_IT_WORKS.md](HOW_IT_WORKS.md).
+The engine answers the question a wealth client asks: *what should I hold,
+and how likely am I to reach my goal?* It builds portfolios for a
+Taiwan-based investor from seven building blocks, compares six allocation
+methods and three overlays walk-forward with costs and taxes, stress-tests
+them, simulates goal probabilities, and turns the result into a one-page
+client report behind an API and a dashboard.
+
+| Read | For |
+|---|---|
+| [REPORT.md](REPORT.md) | the research write-up: question, results, what failed |
+| [RESEARCH_LOG.md](RESEARCH_LOG.md) | every iteration, bug and change of course, in order |
+| [HOW_IT_WORKS.md](HOW_IT_WORKS.md) | each method explained, why it is there, what can go wrong |
+| `notebooks/01`–`05` | the runs themselves (Colab-ready, outputs included) |
+| `reports/` | sample one-page client reports (PDF) |
 
 ## Status
 
@@ -15,33 +26,50 @@ what can go wrong, is in [HOW_IT_WORKS.md](HOW_IT_WORKS.md).
 | 1 | Data snapshots, TWD returns, walk-forward backtest with costs, three benchmarks | Done; run on real data |
 | 2 | Five allocation methods under three client risk profiles, cross-checked against PyPortfolioOpt / Riskfolio-Lib | Done; run on real data |
 | 3 | Stress tests, risk decomposition, CVaR variant, Monte Carlo goal probabilities | Done; run on real data |
+| 4 | GARCH volatility targeting, regime filters (rule and HMM), momentum tilts; pre-registered rules, robustness, deflated Sharpe | Done; run on real data |
+| Hold-out | Last two years, opened once after everything was frozen | Done (`notebooks/04b`) |
+| 5 | Questionnaire, advice engine, one-page PDF report, FastAPI, Streamlit, Docker, CI | Done; sample reports in `reports/` |
 
 ## Layout
 
 ```
-configs/                 one YAML file per run
+configs/                 one YAML file per run; final_choice.yaml = the frozen portfolio per profile
+data/snapshots/          frozen market data (hash-checked); data/macro/ = credit spreads
 src/portfolio_engine/
-  data/                  download (Colab), snapshots, synthetic test data, loader + hold-out lock
+  data/                  download, snapshots, synthetic test data, loader + hold-out lock, data-quality checks
   estimators/            Ledoit-Wolf covariance, historical means, Black-Litterman
-  allocation/            benchmarks, risk profiles, the five methods, shared cvxpy solver
-  backtest/              cost model, walk-forward engine, metrics, experiment runner
-  risk/                  stress tests, risk decomposition, Monte Carlo goals, analysis runner
-notebooks/               one Colab notebook per phase
-tests/                   pytest, all on synthetic data
+  allocation/            benchmarks, risk profiles, six methods, overlays, shared cvxpy solver
+  backtest/              costs, walk-forward engine, metrics, experiments, trial registry, Phase 4 studies
+  risk/                  stress tests, risk decomposition, Monte Carlo goals
+  product/               questionnaire, advisor, PDF report, FastAPI service, implementation check
+app/streamlit_app.py     dashboard
+experiments/             trial registry (every backtest) and the hold-out log
+notebooks/               one Colab notebook per phase, plus 04b (hold-out)
+tests/                   96 pytest tests, all on synthetic data (CI runs them on every push)
 ```
 
 ## Running it
 
-In Colab, open `notebooks/01_data_and_baseline.ipynb` (then `02_allocation_methods.ipynb` and `03_risk_and_goals.ipynb`), set `DOWNLOAD = True`
-for the first run, and keep the snapshot folder it writes (commit it or copy
-it to Drive). Every later run reads that frozen snapshot.
+**Colab:** open any notebook in `notebooks/` (the first cell clones the repo,
+installs the package and, in Colab, keeps snapshots on Google Drive). The
+committed snapshot is used automatically.
 
-Locally:
+**Locally:**
 
 ```
-pip install -e ".[dev]"
-pytest
+pip install -e ".[dev,product]"
+pytest                                            # 96 tests, synthetic data, no network
+uvicorn portfolio_engine.product.api:app          # API: http://localhost:8000/docs
+streamlit run app/streamlit_app.py                # dashboard
 ```
+
+**Docker:** `docker compose up` (API on port 8000, dashboard on 8501). The image itself
+was not built in the development sandbox (no Docker daemon); its recipe was verified with a
+clean, non-editable install serving the API.
+
+A public demo needs a host. The dashboard runs from any working directory and
+is a candidate for Streamlit Community Cloud (`portfolio-engine/app/streamlit_app.py`);
+that deployment has not been tested.
 
 ## Results
 
@@ -152,4 +180,45 @@ What the analysis says:
 - **Statistics:** 3 of the 72 Sharpe comparisons (now including min-CVaR) are
   "significant" at 90%, but about 7 would be by chance alone. Not evidence of an edge.
 
-Hold-out (23 Oct 2024 – 22 Oct 2026): [RESULT], opened once after Phase 4, when every choice is frozen.
+### Phase 4: overlays and robustness
+
+From `notebooks/04_overlays_and_robustness.ipynb` (config `7a10877139aa`).
+The decision rules were pre-registered in `RESEARCH_LOG.md` and committed
+before the runs. 108 overlay backtests plus 11 robustness settings.
+
+| Overlay (median method, change vs core) | Conservative | Balanced | Growth | Kept for |
+|---|---|---|---|---|
+| GARCH volatility target | +3% risk, -0.01 Sharpe | +21%, +0.04 | +36%, +0.08 | balanced, growth |
+| Regime filter (rule) | +16%, +0.05 | +25%, +0.05 | +16%, +0.04 | all |
+| Regime filter (HMM) | +14%, +0.02 | +25%, +0.04 | +16%, +0.03 | all |
+| Momentum tilt (Black-Litterman views) | +2%, -0.01 | -2%, -0.02 | +1%, -0.01 | none |
+
+("risk" = relative improvement in max drawdown or monthly CVaR.) The benefit
+comes almost entirely from 2008-09. **Frozen choice:** conservative min-CVaR
++ all overlays (Sharpe 0.69, worst drawdown -7.4%); balanced min-CVaR + HMM
+regime filter (0.60, -12.6%); growth Black-Litterman + all overlays (0.60,
+-18.2%). Deflated Sharpe ratios after 223 distinct trials: 0.97 / 0.94 /
+0.94 (equal weight 0.89, 60/40 0.84). Min-CVaR had the best Sharpe in 9 of 11
+robustness settings; mean-variance was the most fragile.
+
+### Hold-out (23 Oct 2024 – 22 Oct 2026), opened once
+
+| | Annual return | Volatility | Sharpe | Worst drawdown | Client limit |
+|---|---|---|---|---|---|
+| Conservative choice | 9.5% | 6.3% | 0.85 | -5.2% | -10% (held) |
+| Balanced choice | 11.8% | 7.4% | 1.01 | -6.0% | -20% (held) |
+| Growth choice | 13.9% | 12.7% | 0.78 | -10.0% | -30% (held) |
+| Equal weight | 15.2% | 10.9% | 0.99 | -7.1% | |
+| 60/40 | 15.6% | 12.8% | 0.89 | -10.4% | |
+| 100% Taiwan equity | 42.3% | 27.6% | 1.27 | -23.5% | |
+
+Every loss limit held; no Sharpe difference is significant; no overlay
+passed the keep rule out of sample (no stressed period to protect against).
+
+### Phase 5: the product
+
+From `notebooks/05_product_demo.ipynb`. Three hypothetical clients answer six
+questions and get a one-page report (`reports/sample_report_*.pdf`); the same
+engine serves `POST /advice` and `POST /report`. Implementation check: 0050
+vs EWT in TWD, monthly 2009-2026, correlation 0.92 and tracking error 7.7% a
+year, after repairing an unadjusted 4-for-1 split in Yahoo's 0050 history.

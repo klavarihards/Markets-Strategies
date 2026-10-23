@@ -601,13 +601,22 @@ from noise. The random seed is fixed in the config.
 
 ## 20. The hold-out evaluation
 
-The last cell of notebook 03 opens the final two years of data once,
-after every method and setting has been frozen. The walk-forward run
-simply continues into the hold-out with the same rules, so the portfolio on
-its first day is exactly the one the development run held. Only the
-hold-out dates are summarised. Opening it is logged with a timestamp in
-`results/holdout_log.jsonl`. If anything is changed after that, the
-hold-out is spent and can no longer be called out of sample.
+`notebooks/04b_holdout_evaluation.ipynb` opened the final two years of data
+once, on 23 Oct 2026, after every method, setting and the final choice per
+profile (`configs/final_choice.yaml`, committed first) had been frozen. The
+spec planned this for the end of Phase 3; it was moved to after Phase 4
+because Phase 4 still made research choices (which overlays to keep, which
+portfolio to recommend), and opening earlier would have let the hold-out
+leak into them.
+
+The walk-forward run simply continues into the hold-out with the same
+rules, so the portfolio on its first day is exactly the one the development
+run held. Only the hold-out dates are summarised. The opening is logged in
+`experiments/holdout_log.jsonl` (committed); the hold-out runs are in the
+trial registry with tag `holdout` and never count as development trials.
+Nothing was changed afterwards. The product (Phase 5) is the only code
+allowed to use the hold-out years, and only because they are no longer
+needed as a test.
 
 ---
 
@@ -724,8 +733,10 @@ Nothing in it is new research: it runs the frozen portfolio of each profile
    any sleeves the client wants to avoid removed (the nearest portfolio
    within the profile without them); a one-line reason per holding;
    2008 and 2022 replays; goal probability from 10,000 simulated futures of
-   the portfolio's own after-cost returns, where the client sees the
-   *lower* of the bootstrap and Student-t answers; what NT$2,000 more a month or
+   today's weights on market history, after the portfolio's measured costs,
+   where the client sees the *lower* of the bootstrap and Student-t answers
+   (the same basis for every client, so excluding a holding cannot make the
+   odds look better by switching methods); what NT$2,000 more a month or
    two more years would do; the rebalancing schedule that was actually
    backtested; and an advisor-review trigger at 75% of the client's loss
    limit. Nothing is sold automatically: a person decides.
