@@ -108,11 +108,17 @@ def _log_unlock(log_dir: Path, info: dict[str, Any]) -> None:
 def load_market_data(cfg: dict[str, Any], snapshot_dir: str | Path | None = None,
                      frames: dict[str, pd.DataFrame] | None = None,
                      unlock_holdout: bool = False,
-                     log_dir: str | Path = "results") -> MarketData:
+                     log_dir: str | Path = "results", product: bool = False) -> MarketData:
     """Build :class:`MarketData` from a snapshot folder (or from ``frames`` directly, for tests).
 
     By default the hold-out period is removed. Pass ``unlock_holdout=True``
     only in the final evaluation cell; the unlock is logged with a timestamp.
+
+    ``product=True`` is for the client-facing product, which needs all the
+    data to give advice as of today. It is only allowed once the research is
+    finished, i.e. once the hold-out evaluation has been logged in
+    ``holdout_log.jsonl`` (``holdout_log`` may point elsewhere), so the product
+    can never become a back door into the hold-out during research.
     """
     if frames is None:
         frames, manifest = read_snapshot(snapshot_dir or cfg["data"]["snapshot_dir"])
@@ -139,15 +145,22 @@ def load_market_data(cfg: dict[str, Any], snapshot_dir: str | Path | None = None
         raise ValueError(f"Gaps longer than {_MAX_FILL} days in the data for sleeves {bad}")
 
     h_start = holdout_start(ret.index[-1], cfg["data"].get("holdout_years", 2))
-    if unlock_holdout:
+    if product and sid != "in-memory":
+        log = Path(cfg.get("product", {}).get("holdout_log", Path(log_dir) / "holdout_log.jsonl"))
+        opened = log.exists() and any(json.loads(line).get("snapshot_id") == sid
+                                      for line in log.read_text().splitlines() if line.strip())
+        if not opened:
+            raise PermissionError("The product uses all data, including the hold-out, so it is only "
+                                  "available after the one-time hold-out evaluation has been run and logged.")
+    elif unlock_holdout:
         _log_unlock(Path(log_dir), {
             "opened_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "snapshot_id": sid, "holdout_start": str(h_start.date()),
             "config": cfg.get("name"),
         })
-    else:
+    if not (unlock_holdout or product):
         dev = ret.index < h_start
         ret, ret_usd, rf, fx = ret[dev], ret_usd[dev], rf[dev], fx[dev]
 
     asset_class = {k: v["asset_class"] for k, v in cfg["sleeves"].items()}
-    return MarketData(ret, ret_usd, rf, fx, h_start, unlock_holdout, sid, asset_class)
+    return MarketData(ret, ret_usd, rf, fx, h_start, unlock_holdout or product, sid, asset_class)
