@@ -144,14 +144,22 @@ language explanation of every part in `HOW_IT_WORKS.md`.
 - Phase 1 baselines (1/N, 60/40, 100% Taiwan equity), after costs, in TWD:
   annualised return [RESULT], Sharpe [RESULT], max drawdown [RESULT]
 - Cost drag per year: [RESULT]
+- Phase 2, five methods (equal weight, mean-variance with Ledoit-Wolf
+  shrinkage, Black-Litterman, risk parity, HRP) under conservative, balanced
+  and growth profiles: best method per profile [RESULT]; Sharpe differences
+  vs 1/N and 60/40 with bootstrap intervals [RESULT]; profile limits
+  breached [RESULT]
 
 **Limitations so far:** research uses long-history US-listed proxies, not
 the Taiwan-listed funds a client would hold; cash is modelled with the US
-T-bill rate; cost and tax rates are approximate assumptions; history is one
+T-bill rate; Black-Litterman's neutral portfolio is an assumption and it has
+no views yet; cost and tax rates are approximate assumptions; history is one
 sample path with only a few real crises.
 
 **Key concepts:** Walk-forward backtesting, transaction costs and taxes,
-currency conversion, hold-out testing, reproducible research
+currency conversion, hold-out testing, covariance shrinkage, Black-Litterman,
+risk parity, hierarchical risk parity, suitability constraints, bootstrap
+confidence intervals, reproducible research
 
 ---
 

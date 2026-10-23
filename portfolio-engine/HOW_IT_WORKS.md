@@ -279,10 +279,187 @@ from synthetic data is a result.
 
 ---
 
-## 11. Coming next
+## 11. Client risk profiles (Phase 2)
 
-- **Phase 2:** mean-variance with Ledoit-Wolf shrinkage, Black-Litterman,
-  risk parity and hierarchical risk parity, under the three client risk
-  profiles, each cross-checked against PyPortfolioOpt or Riskfolio-Lib.
+Suitability comes before optimisation. Each client is assigned one of three
+profiles from a short questionnaire, and every portfolio must respect that
+profile's limits, whatever a backtest says.
+
+| Profile | Horizon | Equity | Bonds and cash | Gold | Volatility band | Max loss the client accepts |
+|---|---|---|---|---|---|---|
+| Conservative | 3–5 years | 15–35% | 55–80% | 0–10% | 4–7% | −10% |
+| Balanced | 5–10 years | 40–60% | 30–50% | 0–10% | 7–11% | −20% |
+| Growth | 10+ years | 65–85% | 10–30% | 0–10% | 11–16% | −30% |
+
+These are starting assumptions from the project spec, not regulatory figures.
+No single sleeve may exceed 40%, and there is no leverage or short selling.
+
+- The **ranges** are hard limits. No method may break them.
+- The top of the **volatility band** is a cap on the portfolio's *estimated*
+  volatility. In a crisis, every equity is volatile, so a growth client's
+  65% minimum in equity can make the cap impossible. Then the hard limits
+  win, the cap is dropped for that quarter, and the event is logged
+  (`share_vol_cap_relaxed` in the compliance table).
+- The **maximum loss** is not something an optimiser can guarantee. It is
+  checked afterwards against realised drawdowns (`max_loss_breached`).
+
+**What can go wrong:** the limits often matter more than the method. If the
+profile forces 65% equity, five methods can only differ in how they split
+the remaining room. The compliance table measures how far the profile
+moved each method (`avg_moved_by_profile`), so this is visible, not hidden.
+
+---
+
+## 12. Estimating risk: Ledoit-Wolf shrinkage
+
+Every method except equal weight needs a covariance matrix: how volatile
+each sleeve is and how they move together. The sample covariance from three
+years of daily data is noisy. An optimiser treats it as exact and piles into
+combinations that only *look* low-risk because of noise.
+
+Shrinkage pulls the noisy sample matrix `S` part of the way towards a
+simple, structured target `F`:
+
+```
+shrunk = delta x F + (1 - delta) x S
+```
+
+The target keeps each sleeve's own variance but gives every pair the same
+average correlation. It is wrong in detail but has very little noise. The
+intensity `delta` (0 to 1) is not tuned by hand: Ledoit and Wolf derive the
+value that minimises the expected error, and estimate it from the data.
+Fewer observations or fatter tails give a larger `delta`.
+
+All methods use the **same** shrunk matrix, so differences in results come
+from the methods, not from different inputs.
+
+**Checked against:** PyPortfolioOpt (constant-correlation target) and
+scikit-learn (identity target). The scikit-learn version matches to machine
+precision. PyPortfolioOpt builds its sample matrix with 1/(T−1) instead of
+the paper's 1/T; with that convention the two agree exactly, and otherwise
+differ by about 0.1%.
+
+---
+
+## 13. The five methods
+
+### Equal weight (1/N)
+
+The same amount in each of the seven sleeves, then moved to the nearest
+portfolio the profile allows. **Why it is here:** it estimates nothing, so
+it cannot be fooled by noise. DeMiguel, Garlappi and Uppal (2009) found no
+optimiser that reliably beat it out of sample. **What can go wrong:** it
+ignores risk completely; gold gets as much as US equity.
+
+### Mean-variance with shrinkage (Markowitz, 1952)
+
+Choose weights `w` to maximise
+
+```
+expected return − (lambda / 2) × variance  =  w'mu − (lambda / 2) w'Σw
+```
+
+with `mu` the historical average returns and `Σ` the shrunk covariance.
+`lambda` (risk aversion, 2.5 here) sets how much return the client gives up
+to avoid a unit of variance. **Why it is here:** it is the textbook answer,
+and the starting point of every other method. **What can go wrong:**
+expected returns are very hard to estimate. With 20% volatility, even ten
+years of data pin an average return down only to about ±6% a year. The
+optimiser trusts those noisy averages, so weights jump to corners (the 40%
+cap) and swing from quarter to quarter, which means high turnover and costs.
+
+### Black-Litterman (Black and Litterman, 1990)
+
+Mean-variance again, but with better expected returns:
+
+1. **Reverse optimisation.** If investors with risk aversion `delta` happily
+   hold a neutral market portfolio `w_mkt`, the returns they must expect are
+   `pi = delta × Σ × w_mkt`. A sleeve that adds a lot of risk to the market
+   portfolio must be expected to pay for it.
+2. **Views** (none in Phase 2; tactical views arrive in Phase 4). A view
+   such as "Taiwan equity beats US equity by 2% a year" is a row of `P`, a
+   number in `Q`, and an uncertainty in `Omega`. The posterior returns are a
+   confidence-weighted blend of `pi` and the views.
+3. Run mean-variance on the blended returns, under the profile.
+
+**Why it is here:** it replaces the noisiest input (historical averages)
+with something stable, and gives a disciplined way to add house views.
+**What can go wrong:** the neutral portfolio `w_mkt` is an assumption (a
+rough global multi-asset portfolio, in the config). With no views, the
+result is mostly that assumption projected onto the profile.
+
+### Risk parity (equal risk contribution)
+
+Ignore expected returns. Size each risky sleeve so it contributes the same
+share of the portfolio's total risk. A sleeve's **risk contribution** is
+its weight times its marginal risk: `w_i × (Σw)_i / w'Σw`; the shares add to
+100%. Because bonds are calmer than equities, they get much more weight
+than in 60/40. Cash is left out (it has almost no risk of its own, so risk
+parity would put nearly everything in it) and is added back only if the
+profile needs it. **Solved with:** Spinu's convex reformulation, minimise
+`½ y'Σy − Σ b_i log y_i`, whose solution has exactly equal risk
+contributions; Newton's method converges in a few steps. **What can go
+wrong:** it leans heavily on bonds, so when stocks and bonds fall together
+(2022) it has nowhere to hide. Professional risk-parity funds use leverage
+to reach a target return; client portfolios here do not.
+
+### Hierarchical risk parity (López de Prado, 2016)
+
+1. **Cluster.** Turn correlations into distances, `d = √((1 − ρ)/2)`, and
+   join the closest sleeves into a tree (stocks with stocks, bonds with
+   bonds).
+2. **Reorder** the sleeves so similar ones sit next to each other.
+3. **Split money top-down:** cut the ordered list in half, give each half
+   money in inverse proportion to its variance, and repeat inside each
+   half.
+
+**Why it is here:** it never inverts the covariance matrix, which is the
+step that makes mean-variance unstable when assets are highly correlated.
+**What can go wrong:** with only six risky sleeves the tree is small, and
+the split-in-half rule can separate assets the tree put together. Results
+also depend on the linkage method (single linkage, as in the paper).
+
+**Checked against:** PyPortfolioOpt for mean-variance and Black-Litterman
+(agreement about 1e-8 and 1e-6 in weights) and HRP (identical); Riskfolio-
+Lib for risk parity (about 5e-6, Riskfolio's solver tolerance).
+
+---
+
+## 14. How a method meets the profile
+
+Two cases, both solved as convex problems with cvxpy, which have a single
+best answer:
+
+- **Mean-variance and Black-Litterman** have the profile limits *inside*
+  their optimisation: they find the best trade-off among portfolios the
+  profile allows.
+- **Equal weight, risk parity and HRP** choose weights by their own rule,
+  then the solver finds the *closest* portfolio that satisfies the profile
+  (smallest distance between weight vectors). If the method's choice
+  already fits, nothing changes. How far it moved is logged.
+
+---
+
+## 15. Comparing methods honestly
+
+- **Same days, same costs:** within an estimation window, every method
+  starts on the same quarter-end, from cash, with the same cost model.
+- **Benchmarks:** every profile method is compared with equal weight and
+  60/40.
+- **Is a gap real?** A Sharpe ratio from 15 years of data is uncertain by
+  roughly ±0.25. `sharpe_difference_ci` rebuilds thousands of alternative
+  histories by resampling blocks of 21 trading days (blocks keep calm and
+  stormy weeks together) on the *same* days for both methods, and reports
+  a 90% interval for the Sharpe difference. If it contains zero, the data
+  cannot tell the methods apart, and the write-up must say so.
+- **Not only Sharpe:** the compliance table checks whether each profile
+  portfolio actually stayed in its volatility band and within the client's
+  maximum loss. For a client, a method that wins on average but breaks
+  their loss limit is the wrong method.
+
+---
+
+## 16. Coming next
+
 - **Phase 3:** stress tests, risk decomposition, CVaR, and Monte Carlo
   goal probabilities; then the one-time hold-out evaluation.
