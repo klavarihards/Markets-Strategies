@@ -75,8 +75,10 @@ def build_snapshot(cfg: dict[str, Any], out_dir: str | Path | None = None,
     never edit it afterwards: a new download means a new snapshot folder.
     """
     dcfg = cfg["data"]
-    end = end or dcfg.get("end")
     today = date.today().isoformat()
+    # Yahoo's `end` is exclusive: ending on today keeps only completed trading days.
+    # Without it, a download during market hours would freeze a half-finished day.
+    end = end or dcfg.get("end") or today
     out_dir = Path(out_dir) if out_dir else Path("data/snapshots") / today
     prices = download_prices(dcfg["tickers"], dcfg["start"], end)
     taiwan = download_prices(dcfg["taiwan_listed"], dcfg["start"], end)
