@@ -1,0 +1,78 @@
+# Phase 1: data and baseline.
+# One YAML file per run. The run log stores a hash of these settings, so any
+# reported number can be traced back to the exact configuration that made it.
+
+name: phase1_baseline
+seed: 42                      # used by anything random (synthetic data now, Monte Carlo later)
+base_currency: TWD            # the client lives in TWD; USD results are reported alongside
+
+data:
+  snapshot_dir: data/snapshots/latest   # relative to portfolio-engine/
+  start: "2004-11-18"         # GLD launch date: the youngest research proxy
+  end: null                   # null = up to the download date
+  holdout_years: 2            # last 2 years of the snapshot are locked away
+  tickers: [EWT, SPY, EFA, EEM, TLT, IEF, GLD]   # research proxies (USD, adjusted close)
+  taiwan_listed: ["0050.TW"]  # implementation funds, kept for tracking checks later
+  fred:
+    cash_rate: DTB3           # 3-month US T-bill, secondary market, % per year
+    usdtwd: DEXTAUS           # TWD per 1 USD, noon buying rate
+
+# Seven building blocks. `proxy` maps each sleeve to the ticker(s) whose
+# returns stand in for it; a blend is rebalanced daily to its proxy weights.
+sleeves:
+  taiwan_equity:     {proxy: {EWT: 1.0},           asset_class: equity}
+  us_equity:         {proxy: {SPY: 1.0},           asset_class: equity}
+  intl_equity:       {proxy: {EFA: 0.5, EEM: 0.5}, asset_class: equity}
+  long_treasury:     {proxy: {TLT: 1.0},           asset_class: bond}
+  intermediate_bond: {proxy: {IEF: 1.0},           asset_class: bond}
+  gold:              {proxy: {GLD: 1.0},           asset_class: gold}
+  cash:              {proxy: cash_rate,            asset_class: cash}
+  # Cash is a US T-bill converted into TWD, so it carries USD/TWD risk. Adding
+  # `currency: TWD` to the cash sleeve treats it as a TWD deposit instead (no FX
+  # risk, but still the US T-bill rate, which has usually been above TWD rates).
+
+# Frictions, as fractions (0.001 = 0.1%). The client is assumed to implement
+# with Taiwan-listed ETFs bought through a Taiwan broker.
+#
+#   fund_fee        annual expense ratio of the Taiwan-listed fund the client would hold
+#   proxy_fee       annual expense ratio of the research proxy; its adjusted prices are
+#                   already net of this, so only (fund_fee - proxy_fee) is charged on top
+#   withholding     annual drag from dividend tax withheld at source
+#   half_spread     half the bid-ask spread, paid on every trade
+#   commission      Taiwan broker commission (0.1425% list price, typically discounted)
+#   sell_tax        Taiwan securities transaction tax on ETF sales
+#   fx_spread       USD/TWD conversion cost on trades in foreign-asset sleeves
+#
+# ASSUMPTIONS, NOT MEASUREMENTS: these are approximate and must be checked
+# against the funds' latest fact sheets and the broker's fee schedule before
+# the final hold-out run. Taiwan bond ETFs have had the transaction tax
+# suspended in recent years; 0.1% is kept here as the conservative default.
+costs:
+  taiwan_equity:     {fund_fee: 0.0043, proxy_fee: 0.0059, withholding: 0.0,   half_spread: 0.0005, commission: 0.000855, sell_tax: 0.001, fx_spread: 0.0}
+  us_equity:         {fund_fee: 0.0060, proxy_fee: 0.0009, withholding: 0.004, half_spread: 0.0010, commission: 0.000855, sell_tax: 0.001, fx_spread: 0.0005}
+  intl_equity:       {fund_fee: 0.0080, proxy_fee: 0.0051, withholding: 0.003, half_spread: 0.0015, commission: 0.000855, sell_tax: 0.001, fx_spread: 0.0005}
+  long_treasury:     {fund_fee: 0.0025, proxy_fee: 0.0015, withholding: 0.0,   half_spread: 0.0010, commission: 0.000855, sell_tax: 0.001, fx_spread: 0.0005}
+  intermediate_bond: {fund_fee: 0.0030, proxy_fee: 0.0015, withholding: 0.0,   half_spread: 0.0015, commission: 0.000855, sell_tax: 0.001, fx_spread: 0.0005}
+  gold:              {fund_fee: 0.0100, proxy_fee: 0.0040, withholding: 0.0,   half_spread: 0.0010, commission: 0.000855, sell_tax: 0.001, fx_spread: 0.0005}
+  cash:              {fund_fee: 0.0,    proxy_fee: 0.0,    withholding: 0.0,   half_spread: 0.0,    commission: 0.0,      sell_tax: 0.0,   fx_spread: 0.0}
+
+backtest:
+  rebalance: quarterly        # last trading day of each calendar quarter
+  window_years: [3, 5]        # estimation windows; both are reported
+  periods_per_year: 252
+  start_in_cash: true         # the first rebalance buys the portfolio from cash, and pays for it
+
+# Benchmarks every method must face.
+benchmarks:
+  equal_weight: equal         # 1/7 in every sleeve
+  sixty_forty:                # 60% equity split across the equity sleeves, 40% across bonds
+    taiwan_equity: 0.20
+    us_equity: 0.20
+    intl_equity: 0.20
+    long_treasury: 0.20
+    intermediate_bond: 0.20
+  taiwan_equity_only:
+    taiwan_equity: 1.0
+
+report:
+  tracking_error_vs: sixty_forty

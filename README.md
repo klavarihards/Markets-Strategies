@@ -125,8 +125,46 @@ Carlo notebook.
 
 ---
 
+### 7. Goal-Based Multi-Asset Portfolio Engine (in progress)
+**Folder:** `portfolio-engine/`
+
+A research engine for the question a wealth client asks: what should I hold,
+and how likely am I to reach my goal? It builds portfolios for a Taiwan-based
+investor from seven building blocks (Taiwan, US and international equity,
+long and intermediate bonds, gold, cash), measured in TWD, and compares
+allocation methods from equal weight up to Black-Litterman and hierarchical
+risk parity. Everything is tested walk-forward: at each quarterly rebalance
+the method only sees data up to that day, and fund fees, spreads, the 0.1%
+Taiwan ETF sell tax and FX costs are charged. The last two years of data are
+locked away as a hold-out until the end. Written as a Python package with
+pytest tests on synthetic data, one Colab notebook per phase, and a plain-
+language explanation of every part in `HOW_IT_WORKS.md`.
+
+**Results:** not yet run on real data.
+- Phase 1 baselines (1/N, 60/40, 100% Taiwan equity), after costs, in TWD:
+  annualised return [RESULT], Sharpe [RESULT], max drawdown [RESULT]
+- Cost drag per year: [RESULT]
+- Phase 2, five methods (equal weight, mean-variance with Ledoit-Wolf
+  shrinkage, Black-Litterman, risk parity, HRP) under conservative, balanced
+  and growth profiles: best method per profile [RESULT]; Sharpe differences
+  vs 1/N and 60/40 with bootstrap intervals [RESULT]; profile limits
+  breached [RESULT]
+
+**Limitations so far:** research uses long-history US-listed proxies, not
+the Taiwan-listed funds a client would hold; cash is modelled with the US
+T-bill rate; Black-Litterman's neutral portfolio is an assumption and it has
+no views yet; cost and tax rates are approximate assumptions; history is one
+sample path with only a few real crises.
+
+**Key concepts:** Walk-forward backtesting, transaction costs and taxes,
+currency conversion, hold-out testing, covariance shrinkage, Black-Litterman,
+risk parity, hierarchical risk parity, suitability constraints, bootstrap
+confidence intervals, reproducible research
+
+---
+
 ## Stack
-- **Python** — pandas, numpy, matplotlib, scipy, arch
+- **Python** — pandas, numpy, matplotlib, scipy, arch, pytest
 - **Data** — yfinance (market data), investing.com (commodity futures)
 - **Environment** — Google Colab
 - **AI assistance** — Claude (Anthropic) for development, debugging, and research
