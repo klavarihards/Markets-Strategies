@@ -114,3 +114,20 @@ def test_implementation_tracking_on_synthetic_data():
     rep = tracking_report(make_synthetic_frames(end="2014-12-31", seed=2))
     # The synthetic 0050 is built as EWT in TWD plus small noise, so it must track closely.
     assert rep["correlation"] > 0.95 and rep["tracking_error"] < 0.05 and rep["months"] > 100
+
+
+def test_goal_basis_is_the_same_with_and_without_exclusions(advisor):
+    # Regression test: removing a holding must not change *how* the goal is simulated.
+    import numpy as np
+
+    from portfolio_engine.backtest import metrics
+    from portfolio_engine.risk import Client, simulate_goal
+    a = _answers()
+    adv = advisor.advise(a, TODAY)
+    w = advisor.weights("balanced")
+    run = advisor.runs["balanced"]
+    drag = metrics.cagr(run.gross_returns) - metrics.cagr(run.returns)
+    monthly = metrics.monthly(advisor.data.returns @ w) - drag / 12
+    client = Client("client", "", a.horizon_years(TODAY), a.current_savings, a.monthly_contribution, a.goal_amount, -0.20)
+    sim = simulate_goal(monthly, client, {**advisor.cfg["monte_carlo"], "n_paths": 500}, seed=advisor.cfg["seed"])
+    assert np.isclose(adv["goal"]["probability"], min(sim["bootstrap"]["p_reach_goal"], sim["student_t"]["p_reach_goal"]))

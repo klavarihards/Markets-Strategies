@@ -4,13 +4,22 @@ Run from the portfolio-engine folder:  streamlit run app/streamlit_app.py
 Educational research project with hypothetical clients, not investment advice.
 """
 
+import os
+import sys
 from datetime import date
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
-from portfolio_engine.product import Advisor, Answers
-from portfolio_engine.product.report import fan_chart, render_pdf, weights_chart
+# Work from the portfolio-engine folder whatever directory the app is launched from
+# (e.g. the repository root on a hosting service), and find the package without installing it.
+ROOT = Path(__file__).resolve().parents[1]
+os.chdir(ROOT)
+sys.path.insert(0, str(ROOT / "src"))
+
+from portfolio_engine.product import Advisor, Answers  # noqa: E402  (after the path set-up above)
+from portfolio_engine.product.report import fan_chart, render_pdf, weights_chart  # noqa: E402
 
 st.set_page_config(page_title="Goal-based portfolio engine", layout="wide")
 

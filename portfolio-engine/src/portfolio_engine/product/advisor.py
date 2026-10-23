@@ -9,10 +9,10 @@ the client's questions with the Phase 3 tools:
   minus any sleeves the client wants to avoid (the nearest portfolio within
   the profile without them), with a one-line reason for each holding.
 - **How bad could a year be?** Today's weights replayed through 2008 and 2022.
-- **How likely am I to reach my goal?** 10,000 simulated futures of the
-  portfolio's own after-cost returns; the client is shown the *lower* of the
-  bootstrap and Student-t probabilities, plus what +NT$2,000 a month or two
-  more years would do.
+- **How likely am I to reach my goal?** 10,000 simulated futures built from
+  market history applied to today's weights, after the portfolio's measured
+  costs; the client is shown the *lower* of the bootstrap and Student-t
+  probabilities, plus what +NT$2,000 a month or two more years would do.
 - **When will you contact me?** The rebalancing schedule that was backtested,
   and the loss that triggers an advisor review (75% of the client's limit).
   Nothing is ever sold automatically: a person decides.
@@ -131,13 +131,13 @@ class Advisor:
         port_hist = hist @ w.reindex(hist.columns)
         run = self.runs[profile]
 
-        # Goal simulation: the portfolio's own walk-forward returns after costs; if the client
-        # removed sleeves, today's weights applied to history minus the run's cost drag instead.
-        if answers.avoid:
-            drag = metrics.cagr(run.gross_returns) - metrics.cagr(run.returns)
-            monthly = metrics.monthly(self.data.returns @ w.reindex(self.data.returns.columns)) - drag / 12
-        else:
-            monthly = metrics.monthly(run.returns)
+        # Goal simulation: today's weights applied to the whole market history (rebalanced monthly),
+        # minus the cost drag measured on this portfolio's walk-forward run. The same basis for every
+        # client, with or without excluded holdings, so their probabilities can be compared. (An
+        # earlier version used the walk-forward returns when nothing was excluded and this basis
+        # otherwise; excluding gold then appeared to *raise* a client's odds.)
+        drag = metrics.cagr(run.gross_returns) - metrics.cagr(run.returns)
+        monthly = metrics.monthly(self.data.returns @ w.reindex(self.data.returns.columns).fillna(0.0)) - drag / 12
         prof_cfg = self.cfg["profiles"][profile]
         client = Client("client", "", max(answers.horizon_years(today), 1 / 12), answers.current_savings,
                         answers.monthly_contribution, answers.goal_amount, prof_cfg["max_loss"])

@@ -44,7 +44,7 @@
 <td style="width: 42%;">
 <div class="big">About {{ in_ten }} in 10 simulated futures reach NT${{ "{:,.0f}".format(goal.amount) }} by {{ goal.year }}.</div>
 <p>Typical outcome: NT${{ "{:,.0f}".format(goal.median) }}. A bad case (1 in 20): NT${{ "{:,.0f}".format(goal.p5) }}; a good case: NT${{ "{:,.0f}".format(goal.p95) }}. You will have paid in NT${{ "{:,.0f}".format(goal.contributed) }}.</p>
-<p class="small">{{ "{:,}".format(goal.n_paths) }} simulated futures of this portfolio's own after-cost returns. Two simulation methods were used; this page shows the more cautious ({{ "%.0f"|format(goal.probability * 100) }}% vs {{ "%.0f"|format(goal.probability_other_simulation * 100) }}%).</p>
+<p class="small">{{ "{:,}".format(goal.n_paths) }} simulated futures: today's portfolio applied to market history (in random 12-month blocks, and from a fitted fat-tailed distribution), after estimated costs. This page shows the more cautious of the two ({{ "%.0f"|format(goal.probability * 100) }}% vs {{ "%.0f"|format(goal.probability_other_simulation * 100) }}%).</p>
 </td>
 <td><img src="data:image/png;base64,{{ fan_png }}" width="290" height="152"></td>
 </tr>
