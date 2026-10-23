@@ -261,3 +261,51 @@ on the strict side.
 **Factor exposures:** R² 0.73-0.94 and alphas close to zero: the portfolios
 are mostly bundles of equity, duration and dollar exposure, which is what a
 strategic allocation should be.
+
+---
+
+## Iteration 9: the hold-out, opened once (2026-10-23 16:57 UTC)
+
+`configs/final_choice.yaml` was committed (commit `e386dd0`) before the
+opening; the opening is logged in `experiments/holdout_log.jsonl`; results
+in `notebooks/04b_holdout_evaluation.ipynb` and the registry (tag
+`holdout`). Hold-out: 23 Oct 2024 – 22 Oct 2026, TWD, after costs. It was a
+strong bull market: 100% Taiwan equity returned 42.3% a year.
+
+| | Annual return | Volatility | Sharpe | Worst drawdown | Client limit |
+|---|---|---|---|---|---|
+| Conservative: min-CVaR + all overlays | 9.5% | 6.3% | 0.85 | -5.2% | -10% (held) |
+| Balanced: min-CVaR + HMM regime | 11.8% | 7.4% | 1.01 | -6.0% | -20% (held) |
+| Growth: Black-Litterman + all overlays | 13.9% | 12.7% | 0.78 | -10.0% | -30% (held) |
+| Equal weight | 15.2% | 10.9% | 0.99 | -7.1% | |
+| 60/40 | 15.6% | 12.8% | 0.89 | -10.4% | |
+| 100% Taiwan equity | 42.3% | 27.6% | 1.27 | -23.5% | |
+
+**What held up:** every frozen portfolio stayed inside its client's loss
+limit and (for its own profile) volatility band; the conservative and
+balanced portfolios had the shallowest drawdowns of anything tested.
+
+**What did not:**
+- **The cautious portfolios lagged a boom**, as their lower equity share
+  implies. The balanced choice matched equal weight on Sharpe (1.01 vs
+  0.99) with less risk; the growth choice trailed it (0.78 vs 0.99).
+- **No overlay passed Rule 1 on the hold-out.** There was no stressed period
+  for them to protect against, so they mostly added turnover: the growth
+  choice traded 64% of the portfolio a year, with a cost drag of 1.0% a year
+  (development: 0.8%). Consistent with the finding that their benefit came
+  from 2008.
+- **Mean-variance had the best hold-out Sharpe in every profile** (1.23-1.26),
+  the method that looked most fragile in development. Black-Litterman without
+  views had the worst (0.63-0.69). In a two-year trending market, historical
+  means pointed the right way.
+- **No Sharpe difference is significant.** Every 90% interval for the frozen
+  portfolios against 1/N and 60/40 contains zero (widths of ±0.4 to ±0.7):
+  two years cannot separate these methods.
+
+**Conclusion of the research (Phases 1-4):** no allocation method reliably
+beat equal weight on risk-adjusted return, in development or out of sample.
+What the engine *does* deliver is control of downside risk tailored to the
+client: tail-risk (CVaR) construction kept conservative and balanced clients
+inside their loss limits in every period tested, which no volatility-based
+method managed for conservative clients. Overlays helped in one crisis and
+cost money otherwise. Nothing was changed after this entry.
