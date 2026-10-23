@@ -608,3 +608,163 @@ its first day is exactly the one the development run held. Only the
 hold-out dates are summarised. Opening it is logged with a timestamp in
 `results/holdout_log.jsonl`. If anything is changed after that, the
 hold-out is spent and can no longer be called out of sample.
+
+---
+
+## 21. Overlays: layers on top of the strategic portfolio (Phase 4)
+
+The strategic ("core") portfolio changes quarterly. Overlays react monthly.
+The portfolio only trades when an overlay's target moves by more than 2
+percentage points, so small wiggles in a signal do not cost money. Each
+overlay is tested on every profile × method, with and without it, after costs.
+
+**Volatility targeting (GARCH).** Reused from the QQQ project in this repo.
+A GARCH(1,1) model says today's variance is a long-run level, plus a share of
+yesterday's surprise, plus a share of yesterday's variance:
+
+```
+σ²(t) = ω + α ε²(t−1) + β σ²(t−1)
+```
+
+It captures *volatility clustering*: calm follows calm, storms follow storms.
+Fitted (with fat-tailed Student-t shocks) on the last two years of the
+portfolio's daily returns, it forecasts next month's volatility. If the
+forecast is above the profile's band, equities are scaled down by
+band / forecast and the money goes to bonds and cash. Never above 1, so no
+leverage. *What can go wrong:* GARCH reacts *after* a shock, so it can sell
+after the fall and miss the rebound. The QQQ project found exactly this.
+
+**Regime filter.** Two ways to label each month "calm" or "stressed":
+
+- *Rule* (like the moving-average regime project): stressed if at least two
+  of three alarms ring: equities below their 200-day average; 1-month
+  volatility above its 3-year 80th percentile; the credit spread (Baa
+  corporate yield minus 10-year Treasury yield) above its 3-year 80th
+  percentile. Credit spreads widen when lenders fear defaults, often before
+  equities fall.
+- *Hidden Markov model:* the market is assumed to switch between two hidden
+  states, each with its own average and volatility of weekly returns,
+  volatility and spreads. A Gaussian HMM learns the two states from data up
+  to each date; "stressed" is the high-variance one.
+
+In the stressed regime, the tactical tilt is switched off and 10% of the
+portfolio moves from equities to cash. *What can go wrong:* signals arrive
+late, and every false alarm costs trading and missed returns.
+
+**Tactical tilt (Black-Litterman momentum views).** Time-series momentum:
+asset classes that beat cash over the past 12 months tend to keep doing so
+for a while (Moskowitz, Ooi and Pedersen, 2012). Each risky sleeve gets the
+view "equilibrium return ± 2% a year", with the sign set by its momentum, and
+the Black-Litterman posterior is optimised within ±5 points of the core.
+*What can go wrong:* momentum reverses sharply at turning points, and monthly
+tilts trade a lot. In this project it failed (see the research log).
+
+---
+
+## 22. Not fooling yourself: pre-registration, the trial registry, the deflated Sharpe ratio
+
+**Pre-registration.** Before running Phase 4, the rules for keeping an
+overlay and for choosing the recommended portfolio were written into
+`RESEARCH_LOG.md` and committed. The git history proves they came first, so
+the choice cannot have been fitted to the results.
+
+**Trial registry.** Every backtest ever saved is a row in
+`experiments/registry.csv`: 336 development trials by the end of Phase 4.
+
+**Deflated Sharpe ratio (Bailey and López de Prado, 2014).** Try N random
+strategies and the best one will look good by luck. With N trials whose
+Sharpe ratios vary with variance V, the best is expected to reach about
+
+```
+SR₀ = √V × [ (1 − γ) Φ⁻¹(1 − 1/N) + γ Φ⁻¹(1 − 1/(N·e)) ]       (γ ≈ 0.5772)
+```
+
+(a formula this project checks against a 20,000-run simulation). The DSR is
+the probability that the strategy's true Sharpe is above that bar. It also
+widens the uncertainty for skewed and fat-tailed returns:
+
+```
+DSR = Φ( (SR − SR₀) √(T − 1) / √(1 − skew·SR + (kurtosis − 1)/4 · SR²) )
+```
+
+with SR measured per day on excess returns over T days. Above 0.95 is the
+usual bar. *Caveat:* the 336 trials are strongly correlated (the same method
+with and without an overlay), so N overstates the number of *independent*
+tries and the DSR here errs on the strict side.
+
+**Robustness.** The same methods under other reasonable settings:
+rebalancing frequency, risk aversion, single-sleeve cap, and a calibrated
+conservative profile. A method that wins at only one setting is fragile.
+
+**Calm vs stressed.** Results are split by regime. A method that wins on
+average but fails in crises is unsuitable for conservative clients.
+
+**Factor exposures.** Each portfolio's monthly excess return is regressed on
+US equity, rates, gold (all in USD), USD/TWD and credit. Newey-West
+t-statistics allow for correlated errors over time. A USD/TWD beta of 0.5
+means about half the portfolio behaves like US dollars. *A bug caught in
+review:* measuring the asset factors in TWD made them already contain the
+currency move, and every portfolio showed a nonsensical negative dollar
+exposure; the factors are now measured in USD.
+
+---
+
+## 23. The product (Phase 5)
+
+The research engine becomes something a client and an advisor can use.
+Nothing in it is new research: it runs the frozen portfolio of each profile
+(`configs/final_choice.yaml`) exactly as backtested.
+
+1. **Questionnaire → profile** (`product/questionnaire.py`). Risk
+   *capacity* (horizon and income stability: can the client afford a loss?)
+   and risk *tolerance* (what they would do after a 20% fall: can they stand
+   it?). The profile is the more cautious of the two, and anything under
+   three years is conservative.
+2. **Advice** (`product/advisor.py`). Today's weights for the profile, with
+   any sleeves the client wants to avoid removed (the nearest portfolio
+   within the profile without them); a one-line reason per holding;
+   2008 and 2022 replays; goal probability from 10,000 simulated futures of
+   the portfolio's own after-cost returns, where the client sees the
+   *lower* of the bootstrap and Student-t answers; what NT$2,000 more a month or
+   two more years would do; the rebalancing schedule that was actually
+   backtested; and an advisor-review trigger at 75% of the client's loss
+   limit. Nothing is sold automatically: a person decides.
+3. **One-page PDF** (`product/report.py`, Jinja2 → xhtml2pdf). Every number
+   comes from the advice object; the template only formats it.
+4. **API** (`product/api.py`, FastAPI): `POST /advice`, `POST /report`.
+   **Dashboard** (`app/streamlit_app.py`). **Docker** (`Dockerfile`,
+   `docker-compose.yml`). **CI** (`.github/workflows/portfolio-engine.yml`):
+   ruff and the full test suite on every push, on synthetic data.
+5. **A guard against leaking the hold-out:** the product needs all the data
+   to advise as of today, so the loader refuses to give it to the product
+   until the one-time hold-out evaluation has been logged.
+
+---
+
+## 24. Questions you may be asked (and short answers)
+
+- **Why not just use mean-variance?** Expected returns are estimated with
+  huge error; the optimiser treats them as exact and swings to extremes. Here
+  it had the highest turnover and the least stable results across settings.
+- **Why Ledoit-Wolf?** It trades a little bias for much less noise in the
+  covariance matrix, with the mixing weight derived, not tuned.
+- **What does Black-Litterman add?** It starts from market-implied returns
+  instead of noisy historical ones, and turns views into a confidence-weighted
+  adjustment rather than a guess plugged straight into the optimiser.
+- **Risk parity vs HRP?** Both ignore expected returns. Risk parity equalises
+  risk contributions using the full covariance matrix; HRP clusters similar
+  assets and avoids inverting the matrix, which helps when correlations are high.
+- **Why CVaR instead of volatility?** Clients feel losses, not standard
+  deviations. CVaR measures the average of the worst outcomes and is
+  minimised exactly by linear programming (Rockafellar-Uryasev).
+- **How do you know the backtest is not cheating?** Walk-forward only; tests
+  that scramble the future and check the past is unchanged; a hold-out locked
+  before development and opened once; pre-registered decision rules; every
+  trial counted and the Sharpe ratio deflated for them.
+- **What failed?** Momentum tilts (more turnover, no risk benefit); no method
+  significantly beat 1/N on Sharpe; volatility caps alone could not keep a
+  conservative client within −10% (only the CVaR approach did); the
+  conservative profile's own numbers were inconsistent.
+- **What would you do next?** Real TWD deposit rates and Taiwan-listed fund
+  data, a longer history with more crises, transaction-cost estimates from
+  actual spreads, inflation-adjusted goals, and live paper-trading.

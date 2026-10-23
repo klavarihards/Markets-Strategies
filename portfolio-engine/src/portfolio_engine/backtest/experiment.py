@@ -197,6 +197,7 @@ def save_run(results: dict[tuple[float, str], BacktestResult], summary: pd.DataF
     run_dir.mkdir(parents=True, exist_ok=True)
     rets = pd.DataFrame({f"{n}|{w}y": r.returns for (w, n), r in results.items()})
     rets.to_parquet(run_dir / "daily_returns.parquet")
+    data.rf.reindex(rets.index).to_frame("rf").to_parquet(run_dir / "rf.parquet")   # for excess-return Sharpe
     weights = pd.concat({f"{n}|{w}y": r.weights for (w, n), r in results.items()}, names=["run", "date"])
     weights.to_parquet(run_dir / "weights.parquet")
     summary.to_csv(run_dir / "summary.csv")

@@ -171,3 +171,93 @@ the -10% limit), chosen from that arithmetic alone.
 
 **The hold-out** is opened once, after Rules 1 and 2 have produced the
 frozen configuration, for every method, benchmark and the frozen choice.
+
+---
+
+## Iteration 7: Phase 4 build and first run (config `7a10877139aa`)
+
+**Built:** an engine hook for monthly overlay checks (trade only if the
+target moves > 2 points), GARCH(1,1)-t volatility targeting (reused from
+the QQQ project), rule-based and HMM regime detectors (with the Baa-Treasury
+credit spread, in its own macro snapshot `19d9b758d92e`), Black-Litterman
+momentum tilts capped at ±5 points, the two pre-registered rules as code,
+robustness sweeps, a calm/stressed breakdown, factor regressions and the
+deflated Sharpe ratio. Regimes: the rule flags 17% of months as stressed,
+the HMM 23%; they agree 87% of the time; both flag all of 2008.
+
+**Rule 1 (median method, change vs core, 3-year window):**
+
+| Overlay | Conservative | Balanced | Growth | Kept for |
+|---|---|---|---|---|
+| Volatility target | +3% risk, -0.01 Sharpe | +21% risk, +0.04 | +36% risk, +0.08 | balanced, growth |
+| Regime (rule) | +16% risk, +0.05 | +25%, +0.05 | +16%, +0.04 | all |
+| Regime (HMM) | +14%, +0.02 | +25%, +0.04 | +16%, +0.03 | all |
+| Momentum tilt | +2%, -0.01 | -2%, -0.02 | +1%, -0.01 | none |
+| All three | +12%, +0.03 | +29%, +0.07 | +43%, +0.11 | all |
+
+("risk" = the larger of the relative improvements in max drawdown and
+monthly CVaR.) The momentum tilt **failed everywhere**: it added 21-29
+points of turnover a year and did not reduce risk.
+
+**Weakness in my own rule:** "all" includes the failed tilt, but passed as a
+package. The rule was applied as written; the benefit of "all" almost
+certainly comes from its regime and volatility parts. A better rule would
+have tested packages only from components that passed on their own.
+
+**Rule 2 (frozen in `configs/final_choice.yaml`):** conservative =
+min-CVaR + all overlays (Sharpe 0.69, worst drawdown -7.4%); balanced =
+min-CVaR + HMM regime filter (0.60, -12.6%); growth = Black-Litterman + all
+overlays (0.60, -18.2%). All three stayed within their client's loss limit
+on development data. For the conservative profile only one portfolio was
+within 0.05 Sharpe of the best, so that choice is close to "pick the best of
+36", exactly the situation the deflated Sharpe ratio is for.
+
+**Robustness (balanced, 11 settings):** min-CVaR had the best Sharpe in 9 of
+11 (range 0.52-0.57); mean-variance was the most fragile (0.40-0.58,
+depending on rebalancing frequency and the single-sleeve cap).
+
+**Calibrated conservative profile (6% volatility cap):** every method except
+min-CVaR still broke the -10% limit (-10.5% to -14.5%); min-CVaR -6.0%. A
+volatility cap is the wrong tool for a drawdown limit; a tail-risk
+objective is the right one.
+
+**Calm vs stressed (rule regime):** in stressed periods the conservative
+risk parity, HRP and min-CVaR portfolios kept Sharpe ratios of 0.57-0.72;
+balanced mean-variance fell to -0.09; every growth portfolio was near 0.
+
+**Mentor's check: where does the overlay benefit come from?** Almost
+entirely from 2008-09. For balanced clients the median method's worst
+drawdown in 2008-09 improves from -20.0% (core) to -15.1% (regime filter);
+from 2010 onwards worst drawdowns are almost unchanged (-13.1% vs -11.7% to
+-12.6%) and so are Sharpe ratios. The evidence for the overlays rests on one
+crisis. The hold-out is the first test on new data.
+
+## Iteration 8: two bugs found in review, Phase 4 re-run (same config)
+
+1. **The deflated Sharpe ratio used raw returns** while every other Sharpe in
+   the engine uses returns in excess of cash, so the frozen conservative
+   portfolio showed 0.94 in the DSR table and 0.69 in the summary. Fix: each
+   run now saves the cash rate (`rf.parquet`), the registry stores excess-
+   return Sharpe ratios, and the registry was rebuilt for every earlier run.
+2. **The factor regression double-counted the currency.** The equity, rates
+   and gold factors were measured in TWD, so they already contained the
+   USD/TWD move, and every portfolio showed a negative dollar exposure.
+   Fix: asset factors in USD, USD/TWD on its own. Dollar betas are now
+   0.23-0.71 for the profile portfolios and -1.07 for 100% Taiwan equity
+   (Taiwan stocks fall in TWD when the dollar strengthens), which makes sense.
+
+Also caught: an automatic lint fix removed an import that a newly added
+function needed; the test for the hold-out evaluation failed and caught it.
+
+The frozen choice from the re-run is identical to the first run (as it must
+be: neither fix touches Rules 1 or 2).
+
+**Deflated Sharpe ratios** (223 distinct development trials; expected best
+Sharpe from noise alone 0.22): conservative choice 0.97, balanced 0.94,
+growth 0.94, equal weight 0.89, 60/40 0.84. Only the conservative choice
+clears the usual 0.95 bar; the trials are highly correlated, so this errs
+on the strict side.
+
+**Factor exposures:** R² 0.73-0.94 and alphas close to zero: the portfolios
+are mostly bundles of equity, duration and dollar exposure, which is what a
+strategic allocation should be.

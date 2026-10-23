@@ -110,3 +110,26 @@ def test_decision_rules():
     choice = select_methods(summ, comp, kept, cfg)
     # mean_variance is outside the Sharpe tolerance; equal weight broke the limit; lowest CVaR wins.
     assert choice.loc["balanced", "method"] == "risk_parity" and choice.loc["balanced", "variant"] == "vol_target"
+
+
+def test_frozen_holdout_evaluation(cfg4, tmp_path):
+    import json
+
+    from portfolio_engine.backtest.studies import evaluate_frozen_holdout
+    from portfolio_engine.config import override
+    from portfolio_engine.data import write_snapshot
+    cfg = override(cfg4, **{"profiles": {"balanced": cfg4["profiles"]["balanced"]},
+                            "overlays.variants": ["core", "vol_target"], "backtest.window_years": [3],
+                            "macro.snapshot_dir": str(tmp_path / "no_macro")})
+    snap = write_snapshot(make_synthetic_frames(end="2014-12-31", seed=12), tmp_path / "snap")
+    choice = {"portfolios": {"balanced": {"method": "hrp", "overlay": "vol_target"}}}
+    out = evaluate_frozen_holdout(cfg, choice, snapshot_dir=str(snap), log_dir=str(tmp_path),
+                                  registry=str(tmp_path / "registry.csv"))
+    log = [json.loads(x) for x in (tmp_path / "holdout_log.jsonl").read_text().splitlines()]
+    assert len(log) == 1                                                   # opened exactly once, and logged
+    t = out["tables"]
+    starts = pd.to_datetime(t["frozen_vs_benchmarks"]["start"])
+    assert (starts >= out["data"].holdout_start).all()                    # only hold-out dates summarised
+    assert "balanced:hrp|vol_target" in out["frozen"]
+    reg = pd.read_csv(tmp_path / "registry.csv")
+    assert (reg["tag"] == "holdout").all()                                 # never counted as development trials

@@ -3,7 +3,8 @@
 Overfitting rarely comes from one dishonest step. It comes from trying
 many reasonable-looking variants and reporting the best. The defence is to
 *count*: every saved run (each method, profile, window and setting) is
-appended to ``experiments/registry.csv`` with its Sharpe ratio, skewness
+appended to ``experiments/registry.csv`` with its Sharpe ratio (on returns
+in excess of cash), skewness
 and kurtosis. The deflated Sharpe ratio then uses that count to ask whether
 the best result is better than what the same number of random trials would
 have produced. Runs that touched the hold-out are recorded with tag
@@ -27,9 +28,11 @@ def register_run(run_dir: str | Path, registry: str | Path = REGISTRY) -> pd.Dat
     run_dir = Path(run_dir)
     rec = json.loads((run_dir / "run.json").read_text())
     rets = pd.read_parquet(run_dir / "daily_returns.parquet")
+    # Sharpe ratios are on returns in excess of cash, as everywhere else in the engine.
+    rf = pd.read_parquet(run_dir / "rf.parquet")["rf"] if (run_dir / "rf.parquet").exists() else 0.0
     rows = []
     for col in rets.columns:
-        r = rets[col].dropna()
+        r = (rets[col] - (rf.reindex(rets.index) if isinstance(rf, pd.Series) else rf)).dropna()
         rows.append({"recorded_utc": rec["created_utc"], "config_name": rec["config_name"],
                      "config_hash": rec["config_hash"], "snapshot_id": rec["snapshot_id"],
                      "tag": "holdout" if rec["includes_holdout"] else "dev", "run": col,

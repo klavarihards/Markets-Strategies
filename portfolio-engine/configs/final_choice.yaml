@@ -1,0 +1,33 @@
+# Written by notebooks/04_overlays_and_robustness.ipynb by applying the pre-registered Rules 1 and 2
+# (RESEARCH_LOG.md) to development data only. Do not edit by hand.
+based_on:
+  config: phase4_overlays
+  config_hash: 7a10877139aa
+  snapshot_id: 570bdef9e8ea
+  data_last: '2024-10-22'
+  holdout_opened: false
+kept_overlays:
+  conservative:
+  - all
+  - regime_hmm
+  - regime_rule
+  balanced:
+  - all
+  - regime_hmm
+  - regime_rule
+  - vol_target
+  growth:
+  - all
+  - regime_hmm
+  - regime_rule
+  - vol_target
+portfolios:
+  conservative:
+    method: min_cvar
+    overlay: all
+  balanced:
+    method: min_cvar
+    overlay: regime_hmm
+  growth:
+    method: black_litterman
+    overlay: all

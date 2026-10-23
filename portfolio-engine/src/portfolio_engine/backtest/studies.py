@@ -30,7 +30,7 @@ from ..data.snapshot import find_snapshot, read_snapshot
 from . import metrics
 from .costs import CostModel
 from .engine import BacktestResult, first_rebalance, rebalance_dates, run_backtest
-from .experiment import run_experiment, summary_table
+from .experiment import compliance_table, run_experiment, summary_table
 
 SIMPLICITY = ["equal_weight", "risk_parity", "hrp", "min_cvar", "mean_variance", "black_litterman"]
 
@@ -228,13 +228,21 @@ def regime_breakdown(results: dict[tuple[float, str], BacktestResult], regime: p
 
 
 def factor_returns(data: MarketData, credit: pd.Series | None) -> pd.DataFrame:
-    """Monthly factor returns in TWD: equity, rates (duration), credit, USD/TWD and gold, all over cash."""
+    """Monthly factor returns: equity, rates (duration), gold and credit in local (USD) terms over cash,
+    plus USD/TWD on its own.
+
+    The asset factors are measured in USD on purpose: in TWD they would already
+    contain the currency move, and the regression could not separate "owns US
+    stocks" from "owns US dollars" (an earlier version had exactly this problem
+    and showed nonsensical negative dollar exposures).
+    """
     m = lambda s: metrics.monthly(s)  # noqa: E731
-    cash = m(data.returns["cash"])
-    f = pd.DataFrame({"equity": m(data.returns["us_equity"]) - cash,
-                      "rates": m(data.returns["intermediate_bond"]) - cash,
+    cash = m(data.rf)
+    usd = data.returns_usd
+    f = pd.DataFrame({"equity": m(usd["us_equity"]) - cash,
+                      "rates": m(usd["intermediate_bond"]) - cash,
                       "usd_twd": m(data.fx),
-                      "gold": m(data.returns["gold"]) - cash})
+                      "gold": m(usd["gold"]) - cash})
     if credit is not None:
         spread = credit.resample("ME").last()
         spread.index = spread.index.to_period("M")
@@ -248,7 +256,7 @@ def factor_exposures(results: dict[tuple[float, str], BacktestResult], data: Mar
     import statsmodels.api as sm
 
     f = factor_returns(data, credit)
-    cash = metrics.monthly(data.returns["cash"])
+    cash = metrics.monthly(data.rf)
     rows = []
     for (w, name), res in results.items():
         y = (metrics.monthly(res.returns) - cash).reindex(f.index).dropna()
@@ -262,9 +270,10 @@ def factor_exposures(results: dict[tuple[float, str], BacktestResult], data: Mar
     return pd.DataFrame(rows).set_index("run")
 
 
-def deflated_sharpe_table(results: dict[tuple[float, str], BacktestResult], names: list[str],
-                          registry_path: str = "experiments/registry.csv", snapshot_id: str | None = None) -> pd.DataFrame:
-    """DSR of the named runs, deflated by every distinct development trial in the registry."""
+def deflated_sharpe_table(results: dict[tuple[float, str], BacktestResult], names: list[str], rf: pd.Series,
+                          registry_path: str = "experiments/registry.csv",
+                          snapshot_id: str | None = None) -> pd.DataFrame:
+    """DSR of the named runs (excess returns over cash), deflated by every distinct development trial."""
     reg = pd.read_csv(registry_path)
     reg = reg[reg["tag"] == "dev"]
     if snapshot_id:
@@ -274,9 +283,49 @@ def deflated_sharpe_table(results: dict[tuple[float, str], BacktestResult], name
     rows = []
     for key, res in results.items():
         if key[1] in names:
-            d = metrics.deflated_sharpe_ratio(res.returns, trials)
+            ex = (res.returns - rf.reindex(res.returns.index)).dropna()
+            d = metrics.deflated_sharpe_ratio(ex, trials)
             rows.append({"run": key[1], "sharpe_annual": d["sharpe_daily"] * np.sqrt(252),
                          "expected_max_sharpe_annual": d["sr0_daily"] * np.sqrt(252),
-                         "n_trials": d["n_trials"], "psr_vs_zero": metrics.probabilistic_sharpe_ratio(res.returns),
+                         "n_trials": d["n_trials"], "psr_vs_zero": metrics.probabilistic_sharpe_ratio(ex),
                          "dsr": d["dsr"]})
     return pd.DataFrame(rows).set_index("run")
+
+
+def evaluate_frozen_holdout(cfg: dict[str, Any], choice: dict[str, Any], snapshot_dir: str | None = None,
+                            log_dir: str = "experiments", registry: str = "experiments/registry.csv") -> dict[str, Any]:
+    """The one-time hold-out evaluation of everything, with the frozen choice marked.
+
+    Opens the hold-out (logged in ``log_dir/holdout_log.jsonl``), re-runs every
+    walk-forward backtest on all the data with exactly the frozen settings, and
+    summarises only the hold-out dates. Because every backtest only looks
+    backwards, each portfolio enters the hold-out exactly as the development run
+    left it. Nothing here may be used to change a method or a setting.
+    """
+    from ..data.loader import load_market_data
+    from .experiment import save_run, sharpe_comparison_table
+
+    data = load_market_data(cfg, snapshot_dir=snapshot_dir, unlock_holdout=True, log_dir=log_dir)
+    credit = load_credit_spread(cfg)
+    regimes = regime_signals(cfg, data, credit)
+    period = (data.holdout_start, None)
+
+    core = run_experiment(cfg, data)                             # all methods x profiles x windows + benchmarks
+    overlays = run_overlay_study(cfg, data, regimes)             # 3-year window, every overlay variant
+    tables = {
+        "core_summary": summary_table(core, data, cfg, period=period),
+        "core_compliance": compliance_table(core, data, cfg, period=period),
+        "overlay_summary": summary_table(overlays, data, cfg, period=period),
+        "overlay_compliance": compliance_table(overlays, data, cfg, period=period),
+    }
+    tables["overlay_effects"] = overlay_effects(tables["overlay_summary"])
+    tables["overlay_decisions_holdout"] = apply_keep_rule(tables["overlay_effects"], cfg)
+    frozen = {f"{p}:{c['method']}|{c['overlay']}" for p, c in choice["portfolios"].items()}
+    frozen_runs = {k: v for k, v in overlays.items() if k[1] in frozen or ":" not in k[1]}
+    tables["frozen_vs_benchmarks"] = summary_table(frozen_runs, data, cfg, period=period)
+    tables["frozen_sharpe_ci"] = sharpe_comparison_table(frozen_runs, data, cfg, period=period)
+    tables["frozen_dev_period"] = summary_table(frozen_runs, data, cfg, period=(None, data.holdout_start - pd.Timedelta(days=1)))
+    hold_cfg = {**cfg, "name": "holdout_evaluation"}
+    run_dir = save_run({**core, **overlays}, tables["overlay_summary"], hold_cfg, data, tables=tables, registry=registry)
+    return {"data": data, "core": core, "overlays": overlays, "tables": tables, "run_dir": run_dir,
+            "frozen": sorted(frozen)}
