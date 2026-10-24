@@ -1,5 +1,30 @@
 # Goal-Based Multi-Asset Portfolio Engine
 
+[![tests](https://github.com/klavarihards/Markets-Strategies/actions/workflows/portfolio-engine.yml/badge.svg)](https://github.com/klavarihards/Markets-Strategies/actions/workflows/portfolio-engine.yml)
+
+## Key findings
+
+![Conservative client: worst drawdown by method against the -10% loss limit](docs/key_findings.png)
+
+- **No allocation method reliably beat equal weight on risk-adjusted return**
+  (0 of 60 Sharpe comparisons significant in development, none in the
+  hold-out). **They differed in how much a client can lose:** for a
+  conservative client only the CVaR-minimising portfolio stayed inside the
+  -10% loss limit (chart), which is what that client actually cares about.
+- **What failed:** momentum tilts failed every test; regime and volatility
+  overlays helped in 2008-09 and cost turnover otherwise; and my own
+  pre-registered keep rule let an overlay package pass although it
+  contained the failed tilt.
+- **Out of sample** (the last two years, locked away and opened once) every
+  client loss limit held, but the portfolios lagged a boom in which 100%
+  Taiwan equity returned 42% a year.
+- **With the real Taiwan-listed funds** (0050, 00646, 00645, 00679B,
+  00697B, 00635U, mostly Yuanta) from July 2017 and cash at Taiwan deposit
+  rates, the frozen portfolios returned 1.0-1.4% a year *more* than with
+  the US-listed proxies; the gold fund lagged spot gold by 5.3% a year, and
+  Taiwan cash cut the short-horizon clients' goal chances (78% to 73%,
+  76% to 70%).
+
 Educational research project, not investment advice. Clients are
 hypothetical; fund names are used only as liquid, representative
 Taiwan-listed instruments, not as recommendations.
@@ -16,7 +41,7 @@ client report behind an API and a dashboard.
 | [REPORT.md](REPORT.md) | the research write-up: question, results, what failed |
 | [RESEARCH_LOG.md](RESEARCH_LOG.md) | every iteration, bug and change of course, in order |
 | [HOW_IT_WORKS.md](HOW_IT_WORKS.md) | each method explained, why it is there, what can go wrong |
-| `notebooks/01`–`05` | the runs themselves (Colab-ready, outputs included) |
+| `notebooks/01`–`06` | the runs themselves (Colab-ready, outputs included); `06` = Taiwan funds and cash |
 | `reports/` | sample one-page client reports (PDF) |
 
 ## Status
@@ -29,23 +54,27 @@ client report behind an API and a dashboard.
 | 4 | GARCH volatility targeting, regime filters (rule and HMM), momentum tilts; pre-registered rules, robustness, deflated Sharpe | Done; run on real data |
 | Hold-out | Last two years, opened once after everything was frozen | Done (`notebooks/04b`) |
 | 5 | Questionnaire, advice engine, one-page PDF report, FastAPI, Streamlit, Docker, CI | Done; sample reports in `reports/` |
+| Taiwan check | Frozen portfolios re-run with Taiwan deposit rates for cash and with the Taiwan-listed funds | Done (`notebooks/06`) |
+| Views | Dated Black-Litterman views with stated confidence, scored afterwards | Mechanism built and tested; no views entered yet (`configs/views.yaml`) |
 
 ## Layout
 
 ```
 configs/                 one YAML file per run; final_choice.yaml = the frozen portfolio per profile
-data/snapshots/          frozen market data (hash-checked); data/macro/ = credit spreads
+data/snapshots/          frozen market data (hash-checked); data/macro/ = credit spreads;
+                         data/taiwan/ = Taiwan-listed funds and CBC deposit rates
 src/portfolio_engine/
   data/                  download, snapshots, synthetic test data, loader + hold-out lock, data-quality checks
-  estimators/            Ledoit-Wolf covariance, historical means, Black-Litterman
+  estimators/            Ledoit-Wolf covariance, historical means, Black-Litterman, dated views
   allocation/            benchmarks, risk profiles, six methods, overlays, shared cvxpy solver
   backtest/              costs, walk-forward engine, metrics, experiments, trial registry, Phase 4 studies
   risk/                  stress tests, risk decomposition, Monte Carlo goals
   product/               questionnaire, advisor, PDF report, FastAPI service, implementation check
 app/streamlit_app.py     dashboard
 experiments/             trial registry (every backtest) and the hold-out log
-notebooks/               one Colab notebook per phase, plus 04b (hold-out)
-tests/                   96 pytest tests, all on synthetic data (CI runs them on every push)
+notebooks/               one Colab notebook per phase, plus 04b (hold-out) and 06 (Taiwan check)
+scripts/                 key_findings_chart.py draws docs/key_findings.png from the results
+tests/                   104 pytest tests, all on synthetic data (CI runs them on every push)
 ```
 
 ## Running it
@@ -58,7 +87,7 @@ committed snapshot is used automatically.
 
 ```
 pip install -e ".[dev,product]"
-pytest                                            # 96 tests, synthetic data, no network
+pytest                                            # 104 tests, synthetic data, no network
 uvicorn portfolio_engine.product.api:app          # API: http://localhost:8000/docs
 streamlit run app/streamlit_app.py                # dashboard
 ```
@@ -222,3 +251,43 @@ questions and get a one-page report (`reports/sample_report_*.pdf`); the same
 engine serves `POST /advice` and `POST /report`. Implementation check: 0050
 vs EWT in TWD, monthly 2009-2026, correlation 0.92 and tracking error 7.7% a
 year, after repairing an unadjusted 4-for-1 split in Yahoo's 0050 history.
+
+### Taiwan reality check: Taiwan cash and the real Taiwan-listed funds
+
+From `notebooks/06_taiwan_reality_check.ipynb` (config `configs/taiwan.yaml`,
+Taiwan snapshot `005d4d80deef`). The frozen portfolios are re-run, not
+re-chosen.
+
+**Cash as a TWD deposit at the CBC five major banks' 1-month rate** (also the
+risk-free rate):
+
+| | Development Sharpe (worst drawdown) | Hold-out return | Hold-out Sharpe (worst drawdown) |
+|---|---|---|---|
+| Conservative choice | 0.74 (-7.7%) | 8.5% | 1.13 (-5.8%) |
+| Balanced choice | 0.63 (-12.5%) | 10.5% | 1.22 (-6.1%) |
+| Growth choice | 0.63 (-18.2%) | 13.4% | 0.97 (-10.0%) |
+| Equal weight | 0.55 (-22.3%) | 14.7% | 1.21 (-7.2%) |
+| 100% Taiwan equity | 0.42 (-58.1%) | 42.3% | 1.37 (-23.5%) |
+
+Sharpe ratios rise because the TWD rate (0.35-2.2% since 2004) is lower than
+the T-bill; returns of cash-heavy portfolios fall. Min-CVaR is still the only
+method within the conservative -10% limit (-6.1%). In the product, Taiwan
+cash lowers the short-horizon clients' goal chances from 78% to 73% (Ms. Lin)
+and 76% to 70% (Mr. Chen); the 30-year growth client is unchanged at 81%.
+
+**Funds vs proxies, monthly in TWD, July 2017 – Oct 2026:**
+
+| Sleeve | Fund | Correlation | Tracking error | Return gap (fund − proxy) |
+|---|---|---|---|---|
+| Taiwan equity | 0050 | 0.93 | 8.0% | +4.4% |
+| US equity | 00646 | 0.94 | 5.1% | -0.9% |
+| International equity | 00645 (Japan only) | 0.68 | 10.7% | +3.2% |
+| Long Treasuries | 00679B | 0.94 | 4.3% | -0.3% |
+| Intermediate Treasuries | 00697B | 0.96 | 2.0% | -0.4% |
+| Gold | 00635U (futures) | 0.87 | 7.9% | -5.3% |
+
+**Frozen portfolios' trades replayed with the funds** (next-Taipei-day
+execution, spreads, commission, 0.1% sell tax): conservative +1.0% a year
+against the proxies (tracking error 1.7%), balanced +1.2% (3.0%), growth
++1.4% (4.1%), with similar worst drawdowns. Mostly 0050; nine years is one
+sample with a long Taiwan boom.

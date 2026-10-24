@@ -366,3 +366,54 @@ rates; more crises (longer proxy histories or other markets); spread and
 tax data from a broker; inflation-adjusted goals; threshold rebalancing
 (drift > 5 points) and contribution-first rebalancing, which the spec
 describes but this backtest does not model; a paper-trading log.
+
+## Iteration 11: Taiwan reality check, dated views, and what a reviewer asked for (2026-10-24)
+
+A review of the project as it appears on `main` raised six points. Two of
+them (Phase 3 missing, no CI) came from the fact that pull request 1 was
+merged at the Phase 2 stage (`081f4ac`), so `main` showed none of Phases
+3-5; the rest were real gaps.
+
+**Taiwan cash.** The CBC Statistical Database has an API that serves the
+five major banks' monthly deposit rates back to 1987 (FRED has no Taiwan
+rate series). Getting it to download took four fixes: the server resets
+connections without a browser User-Agent, it needs retries, and its
+certificate lacks a Subject Key Identifier, which Python 3.13's strict
+verification rejects (only that strictness flag is cleared; the
+certificate is still verified). Snapshot `005d4d80deef` (funds and CBC
+tables) is committed in `data/taiwan/`.
+
+*Bug found on the first run:* the TWD deposit rate was unchanged for
+months at a time, so within an estimation window cash had zero variance,
+and the constant-correlation Ledoit-Wolf target divided by zero, sending NaN
+into the solver. Fixed by estimating on the sleeves that move and giving
+the riskless one zero (co)variance; a test covers it.
+
+**Result.** Re-running every method, the frozen choices and the benchmarks
+with Taiwan cash (not re-choosing anything) changed levels, not
+conclusions: Sharpe ratios rose because the TWD rate is lower; min-CVaR is
+still the only method inside the conservative -10% limit (-6.1%); hold-out
+returns of cash-heavy portfolios fell (conservative 9.5% to 8.5% a year).
+In the product, short-horizon clients' goal chances fell from 78% to 73%
+and 76% to 70%. The product now uses Taiwan cash.
+
+**Real funds.** From July 2017 (when all six exist), monthly correlations
+with the proxies are 0.87-0.96 except 00645 (0.68, Japan only). 0050 beat
+EWT by 4.4% a year; 00635U lagged spot gold by 5.3% a year. Replaying the
+frozen portfolios' trades with the funds (next Taipei day, Taiwan costs)
+gave 1.0-1.4% a year more than the proxies, with similar drawdowns. A test
+checks that the replay reproduces the backtest when given the proxies.
+
+**Dated Black-Litterman views.** Built and tested (`estimators/views.py`,
+`configs/views.yaml`): each view has a date, horizon and confidence, is
+used only while active, gets its uncertainty from Idzorek's method
+(matches PyPortfolioOpt), and is scored when it expires. The file is
+empty: my macro journal records what happened and what is expected, not
+dated, quantified forecasts, and writing views now for past dates would be
+hindsight. Views will be entered on the day they are written, and the git
+history proves when.
+
+**Also:** a "Key findings" section with one chart (drawn by
+`scripts/key_findings_chart.py` from the run files) at the top of the
+README; the CI badge; findings cells of notebooks 05 and 06 written from
+their outputs.

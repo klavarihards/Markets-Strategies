@@ -30,6 +30,12 @@ before development and opened once at the end.
 4. **Out of sample, the frozen portfolios did what they promised clients**
    (every loss limit held, with worst drawdowns of -5.2% to -10.0%) but
    lagged a two-year boom in which 100% Taiwan equity returned 42% a year.
+5. **With the real Taiwan-listed funds and Taiwan cash, the conclusions
+   held.** Re-run with cash at the CBC deposit rate, min-CVaR was still the
+   only method inside the conservative limit; held with 0050, 00646, 00645,
+   00679B, 00697B and 00635U from July 2017, the frozen portfolios returned
+   1.0-1.4% a year more than with the proxies. Taiwan cash lowered the
+   short-horizon clients' goal chances (78% to 73%, 76% to 70%).
 
 ## 1. Question and design
 
@@ -110,7 +116,31 @@ year. Mean-variance, the most fragile method in development, had the best
 hold-out Sharpe in every profile (1.15-1.26): two trending years favour
 historical means, which does not make them reliable.
 
-## 4. What failed, and what it taught
+## 4. Taiwan reality check (after the hold-out; nothing re-chosen)
+
+Cash and the risk-free rate at the CBC five major banks' 1-month deposit rate
+(0.35-2.2% since 2004), lagged a month:
+
+| | Development Sharpe (worst drawdown) | Hold-out return, Sharpe (worst drawdown) |
+|---|---|---|
+| Conservative choice | 0.74 (-7.7%) | 8.5%, 1.13 (-5.8%) |
+| Balanced choice | 0.63 (-12.5%) | 10.5%, 1.22 (-6.1%) |
+| Growth choice | 0.63 (-18.2%) | 13.4%, 0.97 (-10.0%) |
+| Equal weight | 0.55 (-22.3%) | 14.7%, 1.21 (-7.2%) |
+
+Funds against proxies (monthly, TWD, July 2017 – Oct 2026): correlation
+0.87-0.96 except 00645 (0.68, Japan only); 0050 +4.4% a year against EWT;
+00635U -5.3% a year against spot gold (it tracks a futures index). The frozen
+portfolios' trades replayed with the funds (next Taipei day, spreads,
+commission, 0.1% sell tax): +1.0%, +1.2%, +1.4% a year against the proxies,
+tracking error 1.7-4.1%, similar drawdowns.
+
+**Dated Black-Litterman views** (`configs/views.yaml`): each view has a date,
+horizon and confidence (Idzorek), is used only while active and is scored at
+expiry. No views have been entered yet; they will be added on the day they are
+written, never back-dated.
+
+## 5. What failed, and what it taught
 
 - **Momentum tilts**: more turnover, no risk benefit, in every profile.
 - **My own keep rule** let "all overlays" pass as a package although it
@@ -119,24 +149,26 @@ historical means, which does not make them reliable.
 - **The conservative profile** as specified was inconsistent: a 7%
   volatility cap implies a -11.5% bad year against a -10% limit.
 - **Bugs found in review** and fixed before any decision used them: a
+  zero-variance cash sleeve that broke the covariance estimate;
   partial trading day in the first download; mislabelled goal results;
   a deflated Sharpe ratio computed on raw instead of excess returns; a
   factor regression that double-counted the currency; an unadjusted 4-for-1
   split in Yahoo's 0050 series. Each is in `RESEARCH_LOG.md`.
 
-## 5. Limitations
+## 6. Limitations
 
-History is one sample path with three real crises; proxies stand in for the
-Taiwan-listed funds (0050 vs EWT: correlation 0.92, tracking error 7.7% a
-year); cash earns the US T-bill rate; cost, tax and duration figures are
+History is one sample path with three real crises; the research ran on
+proxies (the Taiwan-listed funds start in 2017 and were used to check it, not
+to choose); the frozen research used the US T-bill rate for cash (section 4
+re-runs it with Taiwan rates); cost, tax and duration figures are
 approximations; goals are nominal; the 336 trials are correlated, so the
 deflated Sharpe ratio is approximate; the product's numbers are simulations,
 not guarantees, and a model cannot see life events, which is the advisor's
 job.
 
-## 6. Reproducing every number
+## 7. Reproducing every number
 
-`notebooks/01`–`05` (Colab-ready) run on the committed snapshot
-`570bdef9e8ea`; every run records its config hash, snapshot id and seed;
-`experiments/registry.csv` lists every backtest; `pytest` (96 tests,
+`notebooks/01`–`06` (Colab-ready) run on the committed snapshots
+`570bdef9e8ea` and `005d4d80deef` (Taiwan); every run records its config hash, snapshot id and seed;
+`experiments/registry.csv` lists every backtest; `pytest` (104 tests,
 synthetic data) runs in CI on every push.

@@ -67,6 +67,14 @@ had been reinvested, so returns computed from it are *total* returns.
   gave "cash" a −18.8% worst drawdown from exchange-rate moves alone, which
   a real deposit never has, so it was changed (`currency: TWD` in the config)
   before any further results were looked at.
+- **Taiwan deposit rate (added later, `configs/taiwan.yaml`).** The Central
+  Bank's statistics API turned out to give the five major banks' monthly
+  1-month deposit rate back to 1987. With it, cash earns that rate, lagged
+  one month (a monthly average is only known once the month is over), and
+  the same rate is the risk-free rate in the Sharpe ratio. The research
+  results above were frozen on the T-bill version; section 24 re-runs them
+  on the Taiwan rate and reports what changed. The client product uses the
+  Taiwan rate.
 
 ---
 
@@ -380,17 +388,33 @@ Mean-variance again, but with better expected returns:
    hold a neutral market portfolio `w_mkt`, the returns they must expect are
    `pi = delta × Σ × w_mkt`. A sleeve that adds a lot of risk to the market
    portfolio must be expected to pay for it.
-2. **Views** (none in Phase 2; tactical views arrive in Phase 4). A view
-   such as "Taiwan equity beats US equity by 2% a year" is a row of `P`, a
-   number in `Q`, and an uncertainty in `Omega`. The posterior returns are a
-   confidence-weighted blend of `pi` and the views.
+2. **Views** (none in Phase 2; momentum views in Phase 4; dated research
+   views in `configs/views.yaml`). A view such as "Taiwan equity beats US
+   equity by 2% a year" is a row of `P`, a number in `Q`, and an
+   uncertainty in `Omega`. The posterior returns are a confidence-weighted
+   blend of `pi` and the views.
+
+   *Dated views* (`estimators/views.py`) carry the date they were written,
+   a horizon and a confidence from 0 to 1. A backtest uses a view only from
+   its date to the end of its horizon, so it can never benefit from a view
+   before it existed. The confidence becomes the view's uncertainty with
+   Idzorek's method (closed form, Walters 2014):
+   `omega = tau × (1 − c) / c × p'Σp`; 100% confidence imposes the view,
+   0% ignores it (checked against PyPortfolioOpt's implementation). When
+   the horizon is over the view is scored: realised excess return against
+   the forecast, and whether the direction was right
+   (`python -m portfolio_engine.estimators.views`). That turns research
+   notes into a track record. The file is empty until real views are
+   entered on the day they are written; back-dated views would be
+   hindsight.
 3. Run mean-variance on the blended returns, under the profile.
 
 **Why it is here:** it replaces the noisiest input (historical averages)
 with something stable, and gives a disciplined way to add house views.
 **What can go wrong:** the neutral portfolio `w_mkt` is an assumption (a
 rough global multi-asset portfolio, in the config). With no views, the
-result is mostly that assumption projected onto the profile.
+result is mostly that assumption projected onto the profile; it only
+becomes a separate method once views are entered.
 
 ### Risk parity (equal risk contribution)
 
@@ -752,7 +776,35 @@ Nothing in it is new research: it runs the frozen portfolio of each profile
 
 ---
 
-## 24. Questions you may be asked (and short answers)
+## 24. Taiwan reality check: Taiwan cash and the real funds
+
+`backtest/taiwan.py`, `notebooks/06_taiwan_reality_check.ipynb`. Two
+questions about whether the research holds for a real Taiwan client. The
+portfolios are not re-chosen: the frozen choices are re-run and the changes
+reported, so the hold-out is not reused for selection.
+
+1. **Cash at Taiwan rates.** Every method, overlay choice and benchmark is
+   re-run with cash and the risk-free rate at the CBC deposit rate
+   (section 2), on development data and on the hold-out.
+2. **The real funds.** Monthly returns of 0050, 00646, 00645, 00679B,
+   00697B and 00635U (in TWD, from yfinance, in `data/taiwan/`) are compared
+   with each sleeve's proxy from mid-2017, when all six exist: correlation,
+   tracking error, return gap. Then the frozen portfolios' *actual trades*
+   (the target weights at each rebalance from the backtest) are replayed
+   twice, once on the proxies and once on the funds, executed the next
+   Taipei trading day, with spreads, commission and the 0.1% sell tax. Fund
+   fees are already in fund prices, so no extra fee is charged; there is
+   no FX spread because the funds trade in TWD. A test checks that the
+   replay on the proxies reproduces the backtest it came from.
+
+**What can go wrong:** nine years is a short sample dominated by one Taiwan
+boom; 0050's advantage over EWT is likely in large part its heavier TSMC
+weight (EWT's index caps single stocks), which works in both directions. 00645 holds Japan only, while the proxy is half
+developed, half emerging markets.
+
+---
+
+## 25. Questions you may be asked (and short answers)
 
 - **Why not just use mean-variance?** Expected returns are estimated with
   huge error; the optimiser treats them as exact and swings to extremes. Here

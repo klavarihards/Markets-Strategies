@@ -1,5 +1,7 @@
 # Quant Finance Projects
 
+**Featured: [Goal-Based Multi-Asset Portfolio Engine](portfolio-engine/) for a Taiwan-based investor, tested with real Taiwan-listed funds (mostly Yuanta)** ([key findings](portfolio-engine/README.md#key-findings) · [write-up](portfolio-engine/REPORT.md)) [![tests](https://github.com/klavarihards/Markets-Strategies/actions/workflows/portfolio-engine.yml/badge.svg)](https://github.com/klavarihards/Markets-Strategies/actions/workflows/portfolio-engine.yml)
+
 Trading strategies and a pricing model, built and backtested in Python.
 Each strategy goes through the same process: hypothesis → data analysis →
 strategy construction → stress testing (time windows, transaction costs,
@@ -148,8 +150,8 @@ tax and FX costs. The last two years were locked before development and
 opened once at the end; the Phase 4 decision rules were committed before the
 runs they decided; every backtest (336 development trials) is in a registry
 and the best results are reported with the deflated Sharpe ratio. Every
-optimiser is cross-checked against PyPortfolioOpt or Riskfolio-Lib. 96 tests
-run in CI.
+optimiser is cross-checked against PyPortfolioOpt or Riskfolio-Lib. 104 tests
+run in CI on every push.
 
 **Results (TWD, after costs; development Jan 2008 – Oct 2024, hold-out Oct 2024 – Oct 2026):**
 - No method reliably beat equal weight on risk-adjusted return: 0 of 60
@@ -171,6 +173,12 @@ run in CI.
 - Goal simulations: a 30-year growth client reached NT$12M in 46% of
   simulated futures with 60/40 and 63-68% with the best methods; tail-risk
   estimates differ a lot between block-bootstrap and fitted simulations
+- Re-run with the real Taiwan-listed funds (0050, 00646, 00645, 00679B,
+  00697B, 00635U) from July 2017 and cash at Taiwan deposit rates: the
+  frozen portfolios returned 1.0-1.4% a year more than with the US proxies;
+  the gold fund 00635U lagged spot gold by 5.3% a year (it tracks a gold futures index);
+  Taiwan cash lowered short-horizon clients' goal chances (78% to 73%,
+  76% to 70%)
 
 **What failed and was fixed along the way** (all in the research log): a
 partial trading day in the first download, currency risk hiding in "cash",
@@ -179,8 +187,10 @@ returns, a factor regression that double-counted the currency, an
 unadjusted 4-for-1 split in Yahoo's 0050 data, and a product bug that made
 excluding a holding raise a client's odds.
 
-**Limitations:** long-history US-listed proxies stand in for the Taiwan
-funds (0050 vs EWT: correlation 0.92); cash earns the US T-bill rate; cost,
+**Limitations:** the research itself ran on long-history US-listed proxies
+(the Taiwan funds start in 2017 and were only used to check it); the
+frozen research used the US T-bill rate for cash (Taiwan rates in the
+re-run and the product); cost,
 tax and duration inputs are approximate; three real crises in the sample;
 goals are nominal. Educational project with hypothetical clients, not
 investment advice.
