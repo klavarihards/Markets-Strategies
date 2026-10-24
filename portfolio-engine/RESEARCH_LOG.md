@@ -416,3 +416,25 @@ history proves when.
 `scripts/key_findings_chart.py` from the run files) at the top of the
 README; the CI badge; findings cells of notebooks 05 and 06 written from
 their outputs.
+
+## Iteration 12: project brief, and two claims corrected on re-checking (2026-10-24)
+
+Writing the two-page brief (`docs/project_brief.pdf`, built by
+`scripts/project_brief.py` from the run files) meant re-checking every
+sentence it would repeat. Two were wrong:
+
+- *"The funds beat the proxies mainly because of 0050."* Weighting each
+  fund's return gap by the portfolios' holdings gives only about +0.3% a
+  year, not +1.0-1.4%. The replay gap is now split in the run itself
+  (`backtest/taiwan.py`): about +0.7% a year from the funds' own returns
+  (0050 and 00645 ahead, 00635U behind, partly cancelling), +0.2-0.6% from
+  holding costs the research charged on the proxies (the fund fee above the
+  proxy's, withholding, FX spreads) that fund prices already contain, and
+  0.0-0.1% from next-day trading. So part of the "funds did better" result
+  is the research's cost assumptions being conservative, not the funds.
+- *"Hold-out cash return fell because dollar cash had gained from a
+  stronger dollar."* Cash was already held in TWD (iteration 5); the fall
+  from 9.5% to 8.5% a year is the lower TWD deposit rate.
+
+Re-running notebook 06 reproduced every earlier number exactly (registry
+rows identical apart from timestamps, so the registry was left as it was).

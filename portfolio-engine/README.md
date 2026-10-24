@@ -38,6 +38,7 @@ client report behind an API and a dashboard.
 
 | Read | For |
 |---|---|
+| [docs/project_brief.pdf](docs/project_brief.pdf) | two-page project brief |
 | [REPORT.md](REPORT.md) | the research write-up: question, results, what failed |
 | [RESEARCH_LOG.md](RESEARCH_LOG.md) | every iteration, bug and change of course, in order |
 | [HOW_IT_WORKS.md](HOW_IT_WORKS.md) | each method explained, why it is there, what can go wrong |
@@ -73,7 +74,7 @@ src/portfolio_engine/
 app/streamlit_app.py     dashboard
 experiments/             trial registry (every backtest) and the hold-out log
 notebooks/               one Colab notebook per phase, plus 04b (hold-out) and 06 (Taiwan check)
-scripts/                 key_findings_chart.py draws docs/key_findings.png from the results
+scripts/                 key_findings_chart.py, project_brief.py: docs/ figures and the brief, from the results
 tests/                   104 pytest tests, all on synthetic data (CI runs them on every push)
 ```
 
@@ -289,5 +290,7 @@ and 76% to 70% (Mr. Chen); the 30-year growth client is unchanged at 81%.
 **Frozen portfolios' trades replayed with the funds** (next-Taipei-day
 execution, spreads, commission, 0.1% sell tax): conservative +1.0% a year
 against the proxies (tracking error 1.7%), balanced +1.2% (3.0%), growth
-+1.4% (4.1%), with similar worst drawdowns. Mostly 0050; nine years is one
-sample with a long Taiwan boom.
++1.4% (4.1%), with similar worst drawdowns. About 0.7% a year is the funds'
+own returns (0050 and 00645 ahead of their proxies, 00635U behind); 0.2-0.6%
+is holding costs the research charged that fund prices already contain.
+Nine years is one sample with a long Taiwan boom.
