@@ -1,0 +1,27 @@
+# Taiwan reality check: Taiwan cash rates and the Taiwan-listed funds a client would hold.
+# Extends the frozen Phase 4 settings; the portfolio choices in final_choice.yaml are NOT
+# re-selected (the hold-out has been opened). Only the inputs below change.
+extends: phase4_overlays.yaml
+name: taiwan_reality_check
+
+taiwan:
+  snapshot_dir: data/taiwan/latest
+  start: "2014-01-01"
+  # Sleeve -> Taiwan-listed fund (Yahoo ticker). 00697B is the Taiwan-listed match for IEF.
+  funds:
+    taiwan_equity: "0050.TW"          # Yuanta Taiwan Top 50
+    us_equity: "00646.TW"             # Yuanta S&P 500
+    intl_equity: "00645.TW"           # Fubon TOPIX (Japan); the spec's example for this sleeve
+    long_treasury: "00679B.TWO"       # Yuanta US Treasury 20+ Year
+    intermediate_bond: "00697B.TWO"   # Yuanta US Treasury 7-10 Year
+    gold: "00635U.TW"                 # Yuanta S&P GSCI Gold ER Futures
+  cbc_tables:
+    bank_rates: EG2BM01en             # five major banks: 1-month and 1-year deposit rates, base lending rate
+    money_market: EG41M01en           # interbank call loans, commercial paper, bills
+  cash_rate: {table: bank_rates, column: "1-month deposit rates", lag_months: 1}
+
+# Cash is a TWD deposit at the five major banks' 1-month rate, and it is also the risk-free
+# rate for Sharpe ratios (a Taiwan client's alternative to investing).
+sleeves:
+  cash: {proxy: twd_deposit_rate, asset_class: cash, currency: TWD}
+risk_free: twd_deposit_rate

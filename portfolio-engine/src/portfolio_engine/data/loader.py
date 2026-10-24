@@ -74,11 +74,26 @@ def sleeve_returns_usd(prices: pd.DataFrame, fred: pd.DataFrame,
     out = {}
     for name, spec in sleeves.items():
         proxy = spec["proxy"]
-        if proxy == "cash_rate":
-            out[name] = rf
+        if proxy in ("cash_rate", "twd_deposit_rate"):
+            out[name] = rf                       # twd_deposit_rate is filled in by load_market_data
         else:
             out[name] = sum(w * tick_ret[t] for t, w in proxy.items())
     return pd.DataFrame(out), rf
+
+
+def twd_daily_rate(bank_rates: pd.DataFrame, index: pd.DatetimeIndex, column: str = "1-month deposit rates",
+                   lag_months: int = 1, periods_per_year: int = 252) -> pd.Series:
+    """Daily return of a Taiwan bank deposit, from the CBC's monthly rate table.
+
+    The rate for month M is only used from month M + ``lag_months`` on, because a
+    monthly average is not known until the month is over. If the latest months
+    have not been published yet, the last published rate is carried forward.
+    """
+    monthly = bank_rates[column].dropna()
+    monthly.index = monthly.index.to_period("M")
+    periods = index.to_period("M") - lag_months
+    rate = monthly.reindex(monthly.index.union(periods.unique())).ffill().reindex(periods)
+    return pd.Series(rate.to_numpy() / 100.0 / periods_per_year, index=index, name="twd_rate")
 
 
 def fx_returns(fred: pd.DataFrame, index: pd.DatetimeIndex) -> pd.Series:
@@ -129,6 +144,23 @@ def load_market_data(cfg: dict[str, Any], snapshot_dir: str | Path | None = None
     ret_usd, rf = sleeve_returns_usd(frames["prices"], frames["fred"], cfg["sleeves"], ppy)
     fx = fx_returns(frames["fred"], ret_usd.index)
 
+    # Taiwan deposit rate for cash and/or the risk-free rate (configs/taiwan.yaml).
+    twd_sleeves = [k for k, v in cfg["sleeves"].items() if v["proxy"] == "twd_deposit_rate"]
+    if twd_sleeves or cfg.get("risk_free") == "twd_deposit_rate":
+        tcfg = cfg["taiwan"]
+        if "bank_rates" in frames:
+            bank_rates = frames["bank_rates"]
+        else:
+            tw_frames, tw_manifest = read_snapshot(tcfg["snapshot_dir"])
+            bank_rates = tw_frames[tcfg["cash_rate"]["table"]]
+            sid = f"{sid}+{snapshot_id(tw_manifest)}"
+        twd = twd_daily_rate(bank_rates, ret_usd.index, tcfg["cash_rate"]["column"],
+                             tcfg["cash_rate"].get("lag_months", 1), ppy)
+        for k in twd_sleeves:
+            ret_usd[k] = twd
+        if cfg.get("risk_free") == "twd_deposit_rate":
+            rf = twd.rename("rf")
+
     base = cfg.get("base_currency", "TWD").upper()
     ret = to_base_currency(ret_usd, fx) if base == "TWD" else ret_usd.copy()
     # A sleeve marked `currency: TWD` is treated as already in the client's currency:
@@ -147,7 +179,8 @@ def load_market_data(cfg: dict[str, Any], snapshot_dir: str | Path | None = None
     h_start = holdout_start(ret.index[-1], cfg["data"].get("holdout_years", 2))
     if product and sid != "in-memory":
         log = Path(cfg.get("product", {}).get("holdout_log", Path(log_dir) / "holdout_log.jsonl"))
-        opened = log.exists() and any(json.loads(line).get("snapshot_id") == sid
+        base_sid = sid.split("+")[0]             # the market-data snapshot (Taiwan data may be added)
+        opened = log.exists() and any(json.loads(line).get("snapshot_id") == base_sid
                                       for line in log.read_text().splitlines() if line.strip())
         if not opened:
             raise PermissionError("The product uses all data, including the hold-out, so it is only "

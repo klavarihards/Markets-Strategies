@@ -3,6 +3,7 @@
 import json
 from datetime import date
 
+import numpy as np
 import pandas as pd
 import pytest
 from conftest import ROOT
@@ -131,3 +132,29 @@ def test_goal_basis_is_the_same_with_and_without_exclusions(advisor):
     client = Client("client", "", a.horizon_years(TODAY), a.current_savings, a.monthly_contribution, a.goal_amount, -0.20)
     sim = simulate_goal(monthly, client, {**advisor.cfg["monte_carlo"], "n_paths": 500}, seed=advisor.cfg["seed"])
     assert np.isclose(adv["goal"]["probability"], min(sim["bootstrap"]["p_reach_goal"], sim["student_t"]["p_reach_goal"]))
+
+
+def test_replay_reproduces_the_backtest_it_came_from():
+    from portfolio_engine.allocation import FixedWeights
+    from portfolio_engine.backtest import CostModel, run_backtest
+    from portfolio_engine.product.implementation import replay_trades
+    rng = np.random.default_rng(0)
+    idx = pd.bdate_range("2010-01-01", periods=900)
+    r = pd.DataFrame({"a": rng.normal(4e-4, 0.01, 900), "b": rng.normal(2e-4, 0.005, 900), "cash": 1e-4}, index=idx)
+    costs = CostModel.build({"a": {"fund_fee": 0.01, "half_spread": 0.002, "sell_tax": 0.001},
+                             "b": {"half_spread": 0.001}, "cash": {}}, list(r.columns))
+    res = run_backtest(r, FixedWeights({"a": 0.6, "b": 0.3, "cash": 0.1}), costs, window_years=1)
+    rep = replay_trades(r, res.weights, costs, start=res.weights.index[0])
+    pd.testing.assert_series_equal(rep, res.returns, check_names=False, rtol=1e-12)
+    # Next-day execution: the purchase happens one trading day later.
+    late = replay_trades(r, res.weights, costs, start=res.weights.index[0], next_day=True)
+    assert late.index[0] == idx[idx.get_loc(res.weights.index[0]) + 1]
+
+
+def test_sleeve_drift_of_identical_series():
+    from portfolio_engine.product.implementation import sleeve_drift
+    rng = np.random.default_rng(1)
+    idx = pd.bdate_range("2017-01-02", periods=600)
+    r = pd.DataFrame({"x": rng.normal(3e-4, 0.01, 600)}, index=idx)
+    t = sleeve_drift(r, r, "2017-01-01")
+    assert t.loc["x", "correlation"] == pytest.approx(1) and t.loc["x", "tracking_error"] == pytest.approx(0)

@@ -22,6 +22,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Iterable
 
+import numpy as np
 import pandas as pd
 
 from .snapshot import write_snapshot
@@ -109,3 +110,66 @@ def build_macro_snapshot(cfg: dict[str, Any], out_dir: str | Path | None = None,
     fred = download_fred(mcfg["fred"], mcfg.get("start", cfg["data"]["start"]), end)
     meta = {"source": "FRED CSV", "downloaded_on": today, "fred_series": mcfg["fred"], "requested_end": end}
     return write_snapshot({"macro": fred}, out_dir, meta)
+
+
+CBC_API = "https://cpx.cbc.gov.tw/API/DataAPI/Get?FileName={code}"
+# The CBC site rejects requests without a browser-like user agent.
+_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+
+
+def download_cbc(code: str) -> pd.DataFrame:
+    """One table from the Central Bank of the Republic of China (Taiwan) statistical database API.
+
+    Monthly tables come back with periods like ``2026M08``; they are indexed by
+    the last day of that month. Missing values ("-") become NaN.
+    """
+    import json
+    import ssl
+    import time
+
+    # Certificates are still fully verified (chain and host name). Only Python 3.13's extra
+    # RFC 5280 strictness flag is relaxed: the CBC certificate lacks a Subject Key Identifier,
+    # which that flag rejects, while browsers, curl and Python 3.12 (Colab) accept it.
+    ctx = ssl.create_default_context()
+    ctx.verify_flags &= ~getattr(ssl, "VERIFY_X509_STRICT", 0)
+    req = urllib.request.Request(CBC_API.format(code=code), headers={"User-Agent": _UA})
+    for attempt in range(5):                     # the CBC server drops connections now and then
+        try:
+            with urllib.request.urlopen(req, timeout=120, context=ctx) as resp:
+                payload = json.loads(resp.read())
+            break
+        except OSError:
+            if attempt == 4:
+                raise
+            time.sleep(2 ** attempt)
+    cols = [c["data"] for c in payload["data"]["structure"]["Table1"]]
+    rows = payload["data"]["dataSets"]
+    df = pd.DataFrame([r[1:1 + len(cols)] for r in rows], index=[r[0] for r in rows], columns=cols)
+    df = df.replace("-", np.nan).astype(float)
+    idx = pd.Index(df.index)
+    if idx.str.contains("M").all():
+        df.index = pd.PeriodIndex(idx.str.replace("M", "-"), freq="M").to_timestamp(how="end").normalize()
+    else:
+        df.index = pd.to_datetime(idx, format="%Y%m%d")
+    df.index.name = "date"
+    return df
+
+
+def build_taiwan_snapshot(cfg: dict[str, Any], out_dir: str | Path | None = None,
+                          end: str | None = None) -> Path:
+    """Taiwan-listed fund prices (Yahoo) and Taiwan interest rates (CBC), frozen in their own snapshot.
+
+    Kept separate from the research snapshot so adding Taiwan data never
+    changes the prices earlier results were built on.
+    """
+    tcfg = cfg["taiwan"]
+    today = date.today().isoformat()
+    end = end or today
+    out_dir = Path(out_dir) if out_dir else Path("data/taiwan") / today
+    funds = download_prices(list(tcfg["funds"].values()), tcfg.get("start", "2014-01-01"), end)
+    frames = {"funds": funds}
+    for name, code in tcfg["cbc_tables"].items():
+        frames[name] = download_cbc(code)
+    meta = {"source": "yfinance (auto_adjust=True) and CBC Statistical Database API", "downloaded_on": today,
+            "funds": tcfg["funds"], "cbc_tables": tcfg["cbc_tables"], "requested_end": end}
+    return write_snapshot(frames, out_dir, meta)

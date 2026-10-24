@@ -90,3 +90,14 @@ def test_confident_view_moves_returns_further(rets):
     vague = black_litterman(cov, pi, P, Q, omega=np.array([[1.0]]))[0]
     sure = black_litterman(cov, pi, P, Q, omega=np.array([[1e-6]]))[0]
     assert pi["GLD"] < vague["GLD"] < sure["GLD"] == pytest.approx(pi["GLD"] + 0.05, abs=1e-4)
+
+
+def test_riskless_sleeve_gets_zero_covariance(rets):
+    flat = rets.assign(cash=0.0001)                      # a deposit rate that never changed
+    cov, delta = ledoit_wolf(flat)
+    assert np.isfinite(cov.to_numpy()).all()
+    assert (cov["cash"] == 0).all() and (cov.loc["cash"] == 0).all()
+    ref, ref_delta = ledoit_wolf(rets)
+    np.testing.assert_allclose(cov.loc[rets.columns, rets.columns].to_numpy(), ref.to_numpy())
+    corr = correlation_from_cov(cov)
+    assert corr.loc["cash", "cash"] == 1 and (corr.drop(index="cash")["cash"] == 0).all()

@@ -115,3 +115,25 @@ def test_latest_resolves_to_newest_dated_snapshot(tmp_path, frames):
     assert find_snapshot(root / "2025-12-31") is None          # a named folder never falls back
     loaded, _ = read_snapshot(root / "latest")
     assert len(loaded["prices"]) == 300
+
+
+def test_taiwan_deposit_rate_for_cash_and_risk_free(cfg, frames):
+    from portfolio_engine.config import override
+    from portfolio_engine.data.loader import twd_daily_rate
+    months = pd.period_range("2004-01", "2016-12", freq="M")
+    bank = pd.DataFrame({"1-month deposit rates": np.linspace(2.0, 0.5, len(months))},
+                        index=months.to_timestamp(how="end").normalize())
+    tw = override(cfg, **{"sleeves.cash": {"proxy": "twd_deposit_rate", "asset_class": "cash", "currency": "TWD"},
+                          "risk_free": "twd_deposit_rate",
+                          "taiwan": {"cash_rate": {"table": "bank_rates", "column": "1-month deposit rates",
+                                                   "lag_months": 1}}})
+    d = load_market_data(tw, frames={**frames, "bank_rates": bank})
+    day = pd.Timestamp("2010-03-15")
+    feb_rate = bank.loc["2010-02"].iloc[0, 0]                       # March uses February's rate
+    assert d.returns.loc[day, "cash"] == pytest.approx(feb_rate / 100 / 252)
+    pd.testing.assert_series_equal(d.returns["cash"], d.rf, check_names=False)
+    assert (d.returns_usd["cash"] == d.returns["cash"]).all()      # no currency conversion
+    # Months not yet published carry the last published rate forward.
+    idx = pd.bdate_range("2017-01-02", "2017-03-31")
+    late = twd_daily_rate(bank, idx)
+    assert late.notna().all() and late.iloc[-1] == pytest.approx(bank.iloc[-1, 0] / 100 / 252)

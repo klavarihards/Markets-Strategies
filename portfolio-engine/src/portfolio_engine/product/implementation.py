@@ -47,3 +47,82 @@ def tracking_report(frames: dict[str, pd.DataFrame], proxy: str = "EWT", fund: s
         "flagged_moves": {str(d.date()): round(float(v), 4) for d, v in flagged.items()},
         "monthly": both,
     }
+
+
+# ---------------------------------------------------------------------------------------------
+# The frozen portfolios, held with the real Taiwan-listed funds
+# ---------------------------------------------------------------------------------------------
+
+def fund_returns(funds: pd.DataFrame, mapping: dict[str, str], flag_limit: float = 0.10) -> tuple[pd.DataFrame, dict]:
+    """Daily TWD returns of each sleeve's Taiwan-listed fund, after the data-quality checks.
+
+    Returns the returns (columns = sleeves, Taiwan trading calendar) and a record
+    of repaired splits and flagged moves per fund.
+    """
+    out, quality = {}, {}
+    for sleeve, ticker in mapping.items():
+        px, repairs = repair_splits(funds[ticker])
+        flagged = implausible_moves(px, flag_limit)
+        quality[ticker] = {"repairs": repairs, "flagged": {str(d.date()): round(float(v), 4) for d, v in flagged.items()}}
+        out[sleeve] = px.pct_change()
+    return pd.DataFrame(out), quality
+
+
+def sleeve_drift(research_twd: pd.DataFrame, funds_twd: pd.DataFrame, start: str) -> pd.DataFrame:
+    """How far each fund drifts from its research proxy (both in TWD), monthly, from ``start``.
+
+    Monthly because the two trade on different calendars and in different time zones.
+    """
+    rows = {}
+    for s in funds_twd.columns:
+        a = metrics.monthly(research_twd[s].loc[start:].dropna())
+        b = metrics.monthly(funds_twd[s].loc[start:].dropna())
+        both = pd.DataFrame({"proxy": a, "fund": b}).dropna()
+        yrs = len(both) / 12
+        rows[s] = {"months": len(both), "correlation": both.corr().iloc[0, 1],
+                   "tracking_error": (both["fund"] - both["proxy"]).std(ddof=1) * np.sqrt(12),
+                   "proxy_ann_return": (1 + both["proxy"]).prod() ** (1 / yrs) - 1,
+                   "fund_ann_return": (1 + both["fund"]).prod() ** (1 / yrs) - 1}
+    t = pd.DataFrame(rows).T
+    t["return_gap"] = t["fund_ann_return"] - t["proxy_ann_return"]
+    return t
+
+
+def replay_trades(returns: pd.DataFrame, targets: pd.DataFrame, costs, start: pd.Timestamp,
+                  next_day: bool = False) -> pd.Series:
+    """Hold a recorded sequence of target portfolios on another set of returns, with costs.
+
+    ``targets`` are the weights a portfolio traded to, by decision date. With
+    ``next_day=True`` each trade is executed on the first trading day *after*
+    the decision date in ``returns`` (a decision at the New York close can only
+    be traded in Taipei the next day). The portfolio starts in cash at the first
+    target on or after ``start`` and pays to buy it.
+    """
+    idx = returns.index
+    R = returns.to_numpy(float)
+    sleeves = list(returns.columns)
+    tgt = targets.reindex(columns=sleeves).fillna(0.0)
+    tgt = tgt[tgt.index >= start]
+    pos = idx.searchsorted(tgt.index, side="right" if next_day else "left")
+    exec_at = {}
+    for p, (_, row) in zip(pos, tgt.iterrows()):
+        if p < len(idx):
+            exec_at[p] = row.to_numpy()                 # if two decisions map to one day, the later wins
+    first = min(exec_at)
+    w = np.zeros(len(sleeves))
+    if "cash" in sleeves:
+        w[sleeves.index("cash")] = 1.0
+    out = np.zeros(len(idx) - first)
+    for k, i in enumerate(range(first, len(idx))):
+        g = h = 0.0
+        if k > 0:
+            g = float(w @ R[i])
+            h = costs.daily_holding_cost(w)
+            w = w * (1 + R[i]) / (1 + g)
+        t = 0.0
+        if i in exec_at:
+            new = exec_at[i]
+            t = costs.trading_cost(w, new)
+            w = new
+        out[k] = (1 + g - h) * (1 - t) - 1
+    return pd.Series(out, idx[first:], name="net")

@@ -78,7 +78,8 @@ def shock_returns(spec: dict[str, Any], sleeves: list[str], fx_exposed: list[str
 def correlation_stress_cov(cov: pd.DataFrame, rho: float, risky: list[str]) -> pd.DataFrame:
     """Same volatilities, but every pair of risky sleeves gets correlation ``rho``."""
     sd = np.sqrt(np.diag(cov))
-    corr = cov.to_numpy() / np.outer(sd, sd)
+    denom = np.outer(sd, sd)
+    corr = np.divide(cov.to_numpy(), denom, out=np.zeros_like(denom), where=denom > 0)
     idx = [cov.index.get_loc(s) for s in risky]
     for i in idx:
         for j in idx:
