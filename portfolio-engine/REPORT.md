@@ -133,7 +133,9 @@ Funds against proxies (monthly, TWD, July 2017 – Oct 2026): correlation
 00635U -5.3% a year against spot gold (it tracks a futures index). The frozen
 portfolios' trades replayed with the funds (next Taipei day, spreads,
 commission, 0.1% sell tax): +1.0%, +1.2%, +1.4% a year against the proxies,
-tracking error 1.7-4.1%, similar drawdowns.
+tracking error 1.7-4.1%, similar drawdowns. About 0.7% a year of that is the
+funds' own returns; 0.2-0.6% is holding costs the research charged on top of
+the proxies that fund prices already contain.
 
 **Dated Black-Litterman views** (`configs/views.yaml`): each view has a date,
 horizon and confidence (Idzorek), is used only while active and is scored at

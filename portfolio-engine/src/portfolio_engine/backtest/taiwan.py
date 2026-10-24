@@ -93,13 +93,20 @@ def taiwan_reality_check(cfg: dict[str, Any], choice: dict[str, Any], log_dir: s
     for (win, name), res in frozen.items():
         proxy = replay_trades(data.returns, res.weights, research_costs, replay_start)
         fund = replay_trades(funds, res.weights, tw_costs, replay_start, next_day=True)
+        # Split the gap: the research's holding-cost assumptions (extra fund fee, withholding, FX
+        # spread, which the funds' prices already contain), the funds' own returns, next-day trading.
+        proxy_tw_costs = replay_trades(data.returns, res.weights, tw_costs, replay_start)
+        fund_same_day = replay_trades(funds, res.weights, tw_costs, replay_start)
+        split = {"gap_cost_assumptions": metrics.cagr(proxy_tw_costs) - metrics.cagr(proxy),
+                 "gap_fund_returns": metrics.cagr(fund_same_day) - metrics.cagr(proxy_tw_costs),
+                 "gap_next_day": metrics.cagr(fund) - metrics.cagr(fund_same_day)}
         pm, fm = metrics.monthly(proxy), metrics.monthly(fund)
         both = pd.DataFrame({"proxy": pm, "fund": fm}).dropna()
         series[name] = {"proxy": proxy, "fund": fund}
         p, f = _stats(proxy, data.rf), _stats(fund, rf_tw)
         rows.append({"portfolio": name, "start": str(fund.index[0].date()), "end": str(fund.index[-1].date()),
                      **{f"proxy_{k}": v for k, v in p.items()}, **{f"fund_{k}": v for k, v in f.items()},
-                     "return_gap": f["ann_return"] - p["ann_return"],
+                     "return_gap": f["ann_return"] - p["ann_return"], **split,
                      "monthly_correlation": both.corr().iloc[0, 1],
                      "tracking_error": (both["fund"] - both["proxy"]).std(ddof=1) * np.sqrt(12)})
     implementation = pd.DataFrame(rows).set_index("portfolio")
