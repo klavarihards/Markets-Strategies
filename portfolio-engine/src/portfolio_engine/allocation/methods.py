@@ -45,6 +45,7 @@ from ..estimators import (
     implied_returns,
     views_matrices,
 )
+from ..estimators.views import active_views, idzorek_omega, load_views
 from .optimizer import solve
 from .profiles import RiskProfile
 
@@ -193,17 +194,27 @@ class BlackLitterman(ProfileMethod):
     method = "black_litterman"
 
     def __init__(self, *args, market_weights: dict[str, float], risk_aversion: float = 2.5,
-                 tau: float = 0.05, views: list[dict] | None = None, **kw):
+                 tau: float = 0.05, views: list[dict] | None = None, views_file: str | None = None, **kw):
         super().__init__(*args, **kw)
         self.market_weights = pd.Series(market_weights, dtype=float)
         self.risk_aversion = risk_aversion
         self.tau = tau
         self.views = views or []
+        # Dated views (configs/views.yaml): each is used only from the day it was
+        # entered until its horizon ends, with its stated confidence (Idzorek).
+        self.dated_views = load_views(views_file) if views_file else []
 
     def weights(self, history, cov):
         pi = implied_returns(cov, self.market_weights, self.risk_aversion)
         P, Q = views_matrices(self.views, cov.index) if self.views else (None, None)
-        mu, post_cov = black_litterman(cov, pi, P, Q, tau=self.tau)
+        omega = None
+        if self.dated_views:
+            P, Q, conf, used = active_views(self.dated_views, history.index[-1], cov.index)
+            if used:
+                omega = idzorek_omega(P, cov.to_numpy(), conf, self.tau)
+            else:
+                P, Q = None, None
+        mu, post_cov = black_litterman(cov, pi, P, Q, omega=omega, tau=self.tau)
         return solve(post_cov.to_numpy(), list(cov.index), self.asset_class, self.profile, "utility",
                      mu=mu.to_numpy(), risk_aversion=self.risk_aversion, vol_cap=self.vol_cap)
 
