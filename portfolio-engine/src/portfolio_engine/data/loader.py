@@ -177,10 +177,10 @@ def load_market_data(cfg: dict[str, Any], snapshot_dir: str | Path | None = None
         raise ValueError(f"Gaps longer than {_MAX_FILL} days in the data for sleeves {bad}")
 
     h_start = holdout_start(ret.index[-1], cfg["data"].get("holdout_years", 2))
-    if product and sid != "in-memory":
+    base_sid = sid.split("+")[0]                 # the market-data snapshot (Taiwan data may be added)
+    if product and base_sid != "in-memory":
         log = Path(cfg.get("product", {}).get("holdout_log", Path(log_dir) / "holdout_log.jsonl"))
-        base_sid = sid.split("+")[0]             # the market-data snapshot (Taiwan data may be added)
-        opened = log.exists() and any(json.loads(line).get("snapshot_id") == base_sid
+        opened = log.exists() and any(str(json.loads(line).get("snapshot_id")).split("+")[0] == base_sid
                                       for line in log.read_text().splitlines() if line.strip())
         if not opened:
             raise PermissionError("The product uses all data, including the hold-out, so it is only "
