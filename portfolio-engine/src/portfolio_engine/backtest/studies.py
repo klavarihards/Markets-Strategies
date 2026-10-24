@@ -293,7 +293,8 @@ def deflated_sharpe_table(results: dict[tuple[float, str], BacktestResult], name
 
 
 def evaluate_frozen_holdout(cfg: dict[str, Any], choice: dict[str, Any], snapshot_dir: str | None = None,
-                            log_dir: str = "experiments", registry: str = "experiments/registry.csv") -> dict[str, Any]:
+                            log_dir: str = "experiments", registry: str = "experiments/registry.csv",
+                            out_dir: str = "results") -> dict[str, Any]:
     """The one-time hold-out evaluation of everything, with the frozen choice marked.
 
     Opens the hold-out (logged in ``log_dir/holdout_log.jsonl``), re-runs every
@@ -326,6 +327,7 @@ def evaluate_frozen_holdout(cfg: dict[str, Any], choice: dict[str, Any], snapsho
     tables["frozen_sharpe_ci"] = sharpe_comparison_table(frozen_runs, data, cfg, period=period)
     tables["frozen_dev_period"] = summary_table(frozen_runs, data, cfg, period=(None, data.holdout_start - pd.Timedelta(days=1)))
     hold_cfg = {**cfg, "name": "holdout_evaluation"}
-    run_dir = save_run({**core, **overlays}, tables["overlay_summary"], hold_cfg, data, tables=tables, registry=registry)
+    run_dir = save_run({**core, **overlays}, tables["overlay_summary"], hold_cfg, data, out_dir=out_dir,
+                       tables=tables, registry=registry)
     return {"data": data, "core": core, "overlays": overlays, "tables": tables, "run_dir": run_dir,
             "frozen": sorted(frozen)}

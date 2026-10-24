@@ -124,7 +124,7 @@ def test_frozen_holdout_evaluation(cfg4, tmp_path):
     snap = write_snapshot(make_synthetic_frames(end="2014-12-31", seed=12), tmp_path / "snap")
     choice = {"portfolios": {"balanced": {"method": "hrp", "overlay": "vol_target"}}}
     out = evaluate_frozen_holdout(cfg, choice, snapshot_dir=str(snap), log_dir=str(tmp_path),
-                                  registry=str(tmp_path / "registry.csv"))
+                                  registry=str(tmp_path / "registry.csv"), out_dir=str(tmp_path / "results"))
     log = [json.loads(x) for x in (tmp_path / "holdout_log.jsonl").read_text().splitlines()]
     assert len(log) == 1                                                   # opened exactly once, and logged
     t = out["tables"]
