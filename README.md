@@ -1,6 +1,6 @@
 # Quant Finance Projects
 
-**Featured: [Goal-Based Multi-Asset Portfolio Engine](portfolio-engine/) for a Taiwan-based investor, tested with real Taiwan-listed funds (mostly Yuanta)** ([key findings](portfolio-engine/README.md#key-findings) · [write-up](portfolio-engine/REPORT.md)) [![tests](https://github.com/klavarihards/Markets-Strategies/actions/workflows/portfolio-engine.yml/badge.svg)](https://github.com/klavarihards/Markets-Strategies/actions/workflows/portfolio-engine.yml)
+**Featured: [Goal-Based Multi-Asset Portfolio Engine](portfolio-engine/) for a Taiwan-based investor, tested with real Taiwan-listed funds (mostly Yuanta)** ([two-page brief](portfolio-engine/docs/project_brief.pdf) · [key findings](portfolio-engine/README.md#key-findings) · [write-up](portfolio-engine/REPORT.md)) [![tests](https://github.com/klavarihards/Markets-Strategies/actions/workflows/portfolio-engine.yml/badge.svg)](https://github.com/klavarihards/Markets-Strategies/actions/workflows/portfolio-engine.yml)
 
 Trading strategies and a pricing model, built and backtested in Python.
 Each strategy goes through the same process: hypothesis → data analysis →
