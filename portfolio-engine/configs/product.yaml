@@ -2,7 +2,7 @@
 # portfolio per profile frozen in final_choice.yaml (written by notebook 04
 # from the pre-registered rules). Runs on all data, so it only starts once the
 # one-time hold-out evaluation is logged in experiments/holdout_log.jsonl.
-extends: phase4_overlays.yaml
+extends: taiwan.yaml               # Taiwan deposit rate for cash and risk-free (see configs/taiwan.yaml)
 name: product
 
 product:
