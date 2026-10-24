@@ -188,3 +188,61 @@ def sharpe_difference_ci(r_a: pd.Series, r_b: pd.Series, rf: pd.Series | float =
     lo, hi = np.quantile(diffs, [(1 - ci) / 2, 1 - (1 - ci) / 2])
     return {"sharpe_diff": float(point), "ci_low": float(lo), "ci_high": float(hi),
             "share_boot_positive": float((diffs > 0).mean())}
+
+
+EULER_GAMMA = 0.5772156649015329
+
+
+def _psr_z(sr: float, sr0: float, t: int, skew: float, kurt: float) -> float:
+    return (sr - sr0) * np.sqrt(t - 1) / np.sqrt(1 - skew * sr + (kurt - 1) / 4 * sr ** 2)
+
+
+def probabilistic_sharpe_ratio(r: pd.Series, sr_benchmark: float = 0.0) -> float:
+    """Probability that the true Sharpe ratio is above ``sr_benchmark`` (both per-period, e.g. daily).
+
+    A Sharpe ratio measured on T days is itself an estimate. Its uncertainty
+    grows when returns are skewed to the left or fat-tailed, which hedge-fund
+    style returns often are (Bailey and Lopez de Prado, 2012). PSR turns the
+    measured Sharpe into a probability, accounting for the sample length,
+    skewness and kurtosis.
+    """
+    from scipy.stats import norm
+    x = r.dropna()
+    sr = x.mean() / x.std(ddof=1)
+    return float(norm.cdf(_psr_z(sr, sr_benchmark, len(x), x.skew(), x.kurt() + 3)))
+
+
+def expected_max_sharpe(trial_srs: np.ndarray) -> float:
+    """The best Sharpe ratio you would expect from ``N`` trials *of pure noise*.
+
+    If you try many strategies, the best one looks good by luck alone. With N
+    independent trials whose Sharpe ratios vary with variance V, the expected
+    maximum is about ``sqrt(V) * ((1 - g) * z(1 - 1/N) + g * z(1 - 1/(N e)))``,
+    with g the Euler-Mascheroni constant and z the normal quantile function.
+    """
+    from scipy.stats import norm
+    srs = np.asarray(trial_srs, float)
+    n = len(srs)
+    if n < 2:
+        return 0.0
+    v = srs.var(ddof=1)
+    return float(np.sqrt(v) * ((1 - EULER_GAMMA) * norm.ppf(1 - 1 / n)
+                               + EULER_GAMMA * norm.ppf(1 - 1 / (n * np.e))))
+
+
+def deflated_sharpe_ratio(r: pd.Series, trial_srs: np.ndarray) -> dict[str, float]:
+    """Deflated Sharpe ratio (Bailey and Lopez de Prado, 2014).
+
+    The probability that a strategy's true Sharpe ratio is above zero *after*
+    accounting for how many configurations were tried to find it: its PSR
+    measured against the best Sharpe that the same number of noise trials
+    would be expected to produce, instead of against zero. ``trial_srs`` are
+    the per-period Sharpe ratios of every configuration tried (the trial
+    registry). A DSR above 0.95 is the usual bar.
+    """
+    from scipy.stats import norm
+    x = r.dropna()
+    sr = x.mean() / x.std(ddof=1)
+    sr0 = expected_max_sharpe(trial_srs)
+    return {"sharpe_daily": float(sr), "sr0_daily": sr0, "n_trials": int(len(trial_srs)),
+            "dsr": float(norm.cdf(_psr_z(sr, sr0, len(x), x.skew(), x.kurt() + 3)))}

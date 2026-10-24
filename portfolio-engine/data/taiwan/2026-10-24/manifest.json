@@ -1,0 +1,77 @@
+{
+  "created_utc": "2026-10-24T05:43:10+00:00",
+  "source": "yfinance (auto_adjust=True) and CBC Statistical Database API",
+  "downloaded_on": "2026-10-24",
+  "funds": {
+    "taiwan_equity": "0050.TW",
+    "us_equity": "00646.TW",
+    "intl_equity": "00645.TW",
+    "long_treasury": "00679B.TWO",
+    "intermediate_bond": "00697B.TWO",
+    "gold": "00635U.TW"
+  },
+  "cbc_tables": {
+    "bank_rates": "EG2BM01en",
+    "money_market": "EG41M01en"
+  },
+  "requested_end": "2026-10-23",
+  "files": {
+    "funds": {
+      "file": "funds.parquet",
+      "sha256": "7d908b2f14c8a364ac13d00689d042704466e7f6c5709de5717a669145cf211f",
+      "rows": 3119,
+      "columns": [
+        "0050.TW",
+        "00646.TW",
+        "00645.TW",
+        "00679B.TWO",
+        "00697B.TWO",
+        "00635U.TW"
+      ],
+      "first": "2014-01-02",
+      "last": "2026-10-22"
+    },
+    "bank_rates": {
+      "file": "bank_rates.parquet",
+      "sha256": "da80f72ccbedb2d56c0e318946cb4e30fdf7592e2d52a8b9ada57acf06b8b9aa",
+      "rows": 476,
+      "columns": [
+        "1-month deposit rates",
+        "1-year deposit rates",
+        "Base lending rates"
+      ],
+      "first": "1987-01-31",
+      "last": "2026-08-31"
+    },
+    "money_market": {
+      "file": "money_market.parquet",
+      "sha256": "95859fbd7848e96db452cda2fd95fb7bc757a9126f29fdcb286d05a9b07682ad",
+      "rows": 472,
+      "columns": [
+        "Interbank call loans",
+        "Commercial paper-Primary market-1-30 days",
+        "Commercial paper-Primary market-31-90 days",
+        "Commercial paper-Primary market-91-180 days",
+        "Commercial paper-Secondary market-1-30 days",
+        "Commercial paper-Secondary market-31-90 days",
+        "Commercial paper-Secondary market-91-180 days",
+        "NCDs-Secondary market-1-90 days",
+        "NCDs-Secondary market-91-180 days",
+        "Bankers' acceptances-Secondary market-1-30 days",
+        "Bankers' acceptances-Secondary market-31-90 days",
+        "Bankers' acceptances-Secondary market-91-180 days",
+        "Treasury bills-Primary market-1-91 days",
+        "Treasury bills-Primary market-92-182 days",
+        "Treasury bills-Primary market-183-364 days",
+        "Treasury bills-Secondary market-1-30 days",
+        "Treasury bills-Secondary market-31-91 days",
+        "Treasury bills-Secondary market-92-182 days",
+        "RP on government bonds-Secondary market-1-30 days",
+        "RP on government bonds-Secondary market-31-90 days",
+        "RP on government bonds-Secondary market-91-180 days"
+      ],
+      "first": "1987-05-31",
+      "last": "2026-08-31"
+    }
+  }
+}

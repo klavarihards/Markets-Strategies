@@ -1,0 +1,32 @@
+# Dated research views for Black-Litterman (see src/portfolio_engine/estimators/views.py).
+#
+# Rules that keep this honest:
+#   - Enter a view on the day it is written; never back-date it. Git records when it was added.
+#   - A view is used only from `entered` until `entered + horizon_months`, and is scored
+#     against what actually happened when its horizon is over:
+#     `python -m portfolio_engine.estimators.views`.
+#   - To use the views in a backtest, add `views_file: configs/views.yaml` under
+#     `methods.black_litterman` in a config (they are off in the frozen research configs).
+#   - Do not edit or delete a view after entering it; add a new one instead.
+#
+# Fields:
+#   id              short name
+#   entered         date the view was written (YYYY-MM-DD)
+#   source          where it comes from (e.g. "macro journal, 2026-10-24")
+#   statement       the view in words
+#   weights         sleeves it is about: +1 = expected to do better, -1 = worse.
+#                   One sleeve alone = its return over cash; +1/-1 pair = the difference.
+#   q               expected excess return of that combination, per year (0.03 = 3%)
+#   confidence      0-1, how sure you are (Idzorek's method turns it into view uncertainty)
+#   horizon_months  how long the view holds
+#
+# Example (illustrative format only, not a view):
+#   - id: tw_vs_us
+#     entered: "2026-10-24"
+#     source: "macro journal, 2026-10-24"
+#     statement: "Taiwan equity beats US equity by 3% a year over the next 12 months"
+#     weights: {taiwan_equity: 1, us_equity: -1}
+#     q: 0.03
+#     confidence: 0.6
+#     horizon_months: 12
+views: []

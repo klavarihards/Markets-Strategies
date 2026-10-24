@@ -60,10 +60,21 @@ had been reinvested, so returns computed from it are *total* returns.
   later, not assumed away.
 - The 50/50 EFA/EEM blend is rebalanced every day inside the data. That is
   a small simplification of how a real holding would behave.
-- Cash is modelled with the US T-bill rate. A Taiwan client's cash would
-  earn TWD deposit rates, which have been much lower, and has no currency
-  risk. Converting the US T-bill into TWD (as the engine does) gives cash a
-  currency risk it would not really have. This is a known limitation.
+- Cash is a TWD deposit with no currency risk, but it earns the **US**
+  T-bill rate, because no long daily TWD rate series is freely available.
+  TWD deposit rates have usually been lower, so cash returns are somewhat
+  overstated. The first version converted the T-bill into TWD instead; that
+  gave "cash" a −18.8% worst drawdown from exchange-rate moves alone, which
+  a real deposit never has, so it was changed (`currency: TWD` in the config)
+  before any further results were looked at.
+- **Taiwan deposit rate (added later, `configs/taiwan.yaml`).** The Central
+  Bank's statistics API turned out to give the five major banks' monthly
+  1-month deposit rate back to 1987. With it, cash earns that rate, lagged
+  one month (a monthly average is only known once the month is over), and
+  the same rate is the risk-free rate in the Sharpe ratio. The research
+  results above were frozen on the T-bill version; section 24 re-runs them
+  on the Taiwan rate and reports what changed. The client product uses the
+  Taiwan rate.
 
 ---
 
@@ -82,7 +93,8 @@ where `r_FX` is the change in the number of TWD per USD.
 To the client that is `1.10 × 0.90 − 1 = −1%`, roughly nothing.
 
 Results are reported in both TWD and USD, so currency's effect is shown
-rather than hidden. Hedged results come in a later phase.
+rather than hidden. The one exception is cash, which is treated as a TWD
+deposit (see section 2). Hedged results come in a later phase.
 
 ---
 
@@ -376,17 +388,33 @@ Mean-variance again, but with better expected returns:
    hold a neutral market portfolio `w_mkt`, the returns they must expect are
    `pi = delta × Σ × w_mkt`. A sleeve that adds a lot of risk to the market
    portfolio must be expected to pay for it.
-2. **Views** (none in Phase 2; tactical views arrive in Phase 4). A view
-   such as "Taiwan equity beats US equity by 2% a year" is a row of `P`, a
-   number in `Q`, and an uncertainty in `Omega`. The posterior returns are a
-   confidence-weighted blend of `pi` and the views.
+2. **Views** (none in Phase 2; momentum views in Phase 4; dated research
+   views in `configs/views.yaml`). A view such as "Taiwan equity beats US
+   equity by 2% a year" is a row of `P`, a number in `Q`, and an
+   uncertainty in `Omega`. The posterior returns are a confidence-weighted
+   blend of `pi` and the views.
+
+   *Dated views* (`estimators/views.py`) carry the date they were written,
+   a horizon and a confidence from 0 to 1. A backtest uses a view only from
+   its date to the end of its horizon, so it can never benefit from a view
+   before it existed. The confidence becomes the view's uncertainty with
+   Idzorek's method (closed form, Walters 2014):
+   `omega = tau × (1 − c) / c × p'Σp`; 100% confidence imposes the view,
+   0% ignores it (checked against PyPortfolioOpt's implementation). When
+   the horizon is over the view is scored: realised excess return against
+   the forecast, and whether the direction was right
+   (`python -m portfolio_engine.estimators.views`). That turns research
+   notes into a track record. The file is empty until real views are
+   entered on the day they are written; back-dated views would be
+   hindsight.
 3. Run mean-variance on the blended returns, under the profile.
 
 **Why it is here:** it replaces the noisiest input (historical averages)
 with something stable, and gives a disciplined way to add house views.
 **What can go wrong:** the neutral portfolio `w_mkt` is an assumption (a
 rough global multi-asset portfolio, in the config). With no views, the
-result is mostly that assumption projected onto the profile.
+result is mostly that assumption projected onto the profile; it only
+becomes a separate method once views are entered.
 
 ### Risk parity (equal risk contribution)
 
@@ -459,7 +487,347 @@ best answer:
 
 ---
 
-## 16. Coming next
+## 16. CVaR, and the CVaR variant (Phase 3)
 
-- **Phase 3:** stress tests, risk decomposition, CVaR, and Monte Carlo
-  goal probabilities; then the one-time hold-out evaluation.
+**Value-at-risk (VaR)** answers "what loss do I exceed on my worst 5% of
+days?" It says where the bad tail *starts*. **Conditional value-at-risk
+(CVaR)** answers "on those worst 5% of days, what is the *average* loss?"
+It says how bad the tail is inside. Two portfolios can share a VaR while
+one of them has a much nastier tail; CVaR tells them apart, which is why it
+is the main tail measure here. It is reported for days and for months.
+
+**The CVaR variant** (`min_cvar`) is a sixth method aimed at conservative
+clients: the portfolio, inside the profile limits, whose historical CVaR
+over the estimation window is as small as possible. It uses the real daily
+returns as scenarios, so crashes in the data count as they happened, with
+no bell-curve assumption.
+
+**How it is solved.** CVaR is not a smooth formula of the weights, but
+Rockafellar and Uryasev (2000) showed that
+
+```
+CVaR = min over z of [ z + average(max(loss − z, 0)) / (1 − alpha) ]
+```
+
+where `z` turns out to be the VaR. With one helper variable per day for
+`max(loss − z, 0)`, this is a **linear programme**, which solvers handle
+exactly. **Checked against:** Riskfolio-Lib's CVaR minimisation (agreement
+to about 1e-10), and it beats 500 random portfolios on the same data.
+
+**What can go wrong:** it is only as good as the history in the window. A
+3-year window without a crash has a mild tail, and the method will happily
+hold whatever was calm recently.
+
+---
+
+## 17. Where the risk comes from: risk decomposition
+
+A portfolio that looks diversified by weight can get most of its risk from
+one place. Two decompositions, each adding up exactly to the total:
+
+- **Share of volatility:** sleeve i contributes `w_i (Σw)_i / w'Σw`, its
+  weight times how much it moves with the whole portfolio.
+- **Share of CVaR:** on the portfolio's worst 5% of days, how much of the
+  average loss came from each sleeve: `w_i × (sleeve i's average return on
+  those days)`. Because the portfolio's return each day is the sum of the
+  weighted sleeve returns, the pieces add up to the CVaR exactly.
+
+The notebook shows, for each portfolio, the share of **money** in equities
+next to the share of **risk** from equities. The gap is usually large,
+because equities are three to four times as volatile as intermediate bonds.
+
+---
+
+## 18. Stress tests
+
+**Historical replay.** Today's portfolio (the last quarter-end before the
+hold-out) is held, *without rebalancing*, through five real crises:
+
+| Scenario | Period | What it tests |
+|---|---|---|
+| Global financial crisis | Oct 2007 – Mar 2009 | Equity crash, flight to Treasuries |
+| Euro debt crisis | 2011 | Contagion, correlation spikes |
+| Taper tantrum | May – Sep 2013 | Rising rates hurting bonds |
+| COVID crash | Feb – Mar 2020 | Fast, deep fall and recovery |
+| 2022 inflation shock | 2022 | Stocks and bonds falling together |
+
+Reported: total return over the episode, the worst fall inside it, and how
+many months it took to get back to the starting value. The worst fall is
+compared with the client's maximum acceptable loss. Separately, the
+notebook shows what the walk-forward portfolios *actually* did in each
+crisis their backtest covered.
+
+**Hypothetical shocks**, applied instantly to today's weights:
+
+- *Taiwan equities −30% with TWD weakening 10%.* A weaker TWD makes every
+  USD-priced asset worth 10% more in TWD, which cushions a diversified
+  client and does nothing for a 100%-Taiwan one.
+- *US rates +2 percentage points.* A bond fund with duration D loses about
+  D × 2%: roughly −34% for long Treasuries (duration about 17) and −15% for
+  intermediate bonds (about 7.5). The durations are approximations in the
+  config.
+- *Gold −20%.*
+- *Correlations rise to 0.8.* Not a price move but a risk change: every
+  pair of risky sleeves suddenly moves together, the situation in which
+  diversification fails. Reported as a 1-in-20 bad year (1.645 × annual
+  volatility under a normal approximation), next to the same figure with
+  normal correlations.
+
+**What can go wrong:** history is one sample path. A replay says what
+these weights would have done in *that* crisis, not in the next one. The
+hypothetical shocks are instantaneous and ignore second-round effects
+(a Taiwan crash would probably also hit US equities).
+
+---
+
+## 19. Goal probabilities: Monte Carlo
+
+The client's real question is "will I get there?" For each hypothetical
+client (5, 10 and 30 years; amounts in the config) and each portfolio
+option, 10,000 futures are simulated month by month:
+
+1. **Future monthly returns**, two ways, both reported:
+   - *Block bootstrap.* The portfolio's own walk-forward monthly returns
+     after costs are cut into 12-month blocks and glued together in random
+     order. Real crashes and recoveries are kept, just re-ordered.
+   - *Student-t.* Random monthly returns with the same mean and volatility
+     as that history, but from a fat-tailed distribution (5 degrees of
+     freedom), so extreme months happen more often than a bell curve
+     allows. *Antithetic variates* (from the option pricer in
+     `monte-carlo/Monte_Carlo.ipynb`): every random draw is also used
+     mirrored, which cancels part of the simulation noise for free.
+2. **Wealth:** each month the contribution goes in and the pot earns that
+   month's return: `W[t+1] = (W[t] + contribution) × (1 + r)`. With a
+   constant return this reproduces the annuity formula exactly (tested).
+3. **Count:** the share of futures that end at or above the goal.
+
+Also reported: the median and the 5th–95th percentile of final wealth;
+the chance that the investments fall further than the client's loss limit
+at some point (measured on returns, because contributions would hide
+losses in the wealth figure); the bad-case time to reach the goal (by when
+90% of futures have got there); and the probability with NT$2,000 more a
+month or two more years. All variants reuse the same random draws
+("common random numbers"), so their differences come from the change, not
+from noise. The random seed is fixed in the config.
+
+**What can go wrong**
+- Both methods assume the future looks like 2008–2024 rearranged. That
+  period includes a long bond bull market that cannot repeat from today's
+  starting yields, so bond-heavy portfolios may look better than they will
+  be.
+- Amounts are nominal: inflation is not modelled, so NT$3 million in 10
+  years buys less than NT$3 million today.
+- The probability is only as good as the client's inputs: a missed
+  contribution or an early withdrawal changes everything, and life events
+  are the advisor's job, not the model's.
+
+---
+
+## 20. The hold-out evaluation
+
+`notebooks/04b_holdout_evaluation.ipynb` opened the final two years of data
+once, on 23 Oct 2026, after every method, setting and the final choice per
+profile (`configs/final_choice.yaml`, committed first) had been frozen. The
+spec planned this for the end of Phase 3; it was moved to after Phase 4
+because Phase 4 still made research choices (which overlays to keep, which
+portfolio to recommend), and opening earlier would have let the hold-out
+leak into them.
+
+The walk-forward run simply continues into the hold-out with the same
+rules, so the portfolio on its first day is exactly the one the development
+run held. Only the hold-out dates are summarised. The opening is logged in
+`experiments/holdout_log.jsonl` (committed); the hold-out runs are in the
+trial registry with tag `holdout` and never count as development trials.
+Nothing was changed afterwards. The product (Phase 5) is the only code
+allowed to use the hold-out years, and only because they are no longer
+needed as a test.
+
+---
+
+## 21. Overlays: layers on top of the strategic portfolio (Phase 4)
+
+The strategic ("core") portfolio changes quarterly. Overlays react monthly.
+The portfolio only trades when an overlay's target moves by more than 2
+percentage points, so small wiggles in a signal do not cost money. Each
+overlay is tested on every profile × method, with and without it, after costs.
+
+**Volatility targeting (GARCH).** Reused from the QQQ project in this repo.
+A GARCH(1,1) model says today's variance is a long-run level, plus a share of
+yesterday's surprise, plus a share of yesterday's variance:
+
+```
+σ²(t) = ω + α ε²(t−1) + β σ²(t−1)
+```
+
+It captures *volatility clustering*: calm follows calm, storms follow storms.
+Fitted (with fat-tailed Student-t shocks) on the last two years of the
+portfolio's daily returns, it forecasts next month's volatility. If the
+forecast is above the profile's band, equities are scaled down by
+band / forecast and the money goes to bonds and cash. Never above 1, so no
+leverage. *What can go wrong:* GARCH reacts *after* a shock, so it can sell
+after the fall and miss the rebound. The QQQ project found exactly this.
+
+**Regime filter.** Two ways to label each month "calm" or "stressed":
+
+- *Rule* (like the moving-average regime project): stressed if at least two
+  of three alarms ring: equities below their 200-day average; 1-month
+  volatility above its 3-year 80th percentile; the credit spread (Baa
+  corporate yield minus 10-year Treasury yield) above its 3-year 80th
+  percentile. Credit spreads widen when lenders fear defaults, often before
+  equities fall.
+- *Hidden Markov model:* the market is assumed to switch between two hidden
+  states, each with its own average and volatility of weekly returns,
+  volatility and spreads. A Gaussian HMM learns the two states from data up
+  to each date; "stressed" is the high-variance one.
+
+In the stressed regime, the tactical tilt is switched off and 10% of the
+portfolio moves from equities to cash. *What can go wrong:* signals arrive
+late, and every false alarm costs trading and missed returns.
+
+**Tactical tilt (Black-Litterman momentum views).** Time-series momentum:
+asset classes that beat cash over the past 12 months tend to keep doing so
+for a while (Moskowitz, Ooi and Pedersen, 2012). Each risky sleeve gets the
+view "equilibrium return ± 2% a year", with the sign set by its momentum, and
+the Black-Litterman posterior is optimised within ±5 points of the core.
+*What can go wrong:* momentum reverses sharply at turning points, and monthly
+tilts trade a lot. In this project it failed (see the research log).
+
+---
+
+## 22. Not fooling yourself: pre-registration, the trial registry, the deflated Sharpe ratio
+
+**Pre-registration.** Before running Phase 4, the rules for keeping an
+overlay and for choosing the recommended portfolio were written into
+`RESEARCH_LOG.md` and committed. The git history proves they came first, so
+the choice cannot have been fitted to the results.
+
+**Trial registry.** Every backtest ever saved is a row in
+`experiments/registry.csv`: 336 development trials by the end of Phase 4.
+
+**Deflated Sharpe ratio (Bailey and López de Prado, 2014).** Try N random
+strategies and the best one will look good by luck. With N trials whose
+Sharpe ratios vary with variance V, the best is expected to reach about
+
+```
+SR₀ = √V × [ (1 − γ) Φ⁻¹(1 − 1/N) + γ Φ⁻¹(1 − 1/(N·e)) ]       (γ ≈ 0.5772)
+```
+
+(a formula this project checks against a 20,000-run simulation). The DSR is
+the probability that the strategy's true Sharpe is above that bar. It also
+widens the uncertainty for skewed and fat-tailed returns:
+
+```
+DSR = Φ( (SR − SR₀) √(T − 1) / √(1 − skew·SR + (kurtosis − 1)/4 · SR²) )
+```
+
+with SR measured per day on excess returns over T days. Above 0.95 is the
+usual bar. *Caveat:* the 336 trials are strongly correlated (the same method
+with and without an overlay), so N overstates the number of *independent*
+tries and the DSR here errs on the strict side.
+
+**Robustness.** The same methods under other reasonable settings:
+rebalancing frequency, risk aversion, single-sleeve cap, and a calibrated
+conservative profile. A method that wins at only one setting is fragile.
+
+**Calm vs stressed.** Results are split by regime. A method that wins on
+average but fails in crises is unsuitable for conservative clients.
+
+**Factor exposures.** Each portfolio's monthly excess return is regressed on
+US equity, rates, gold (all in USD), USD/TWD and credit. Newey-West
+t-statistics allow for correlated errors over time. A USD/TWD beta of 0.5
+means about half the portfolio behaves like US dollars. *A bug caught in
+review:* measuring the asset factors in TWD made them already contain the
+currency move, and every portfolio showed a nonsensical negative dollar
+exposure; the factors are now measured in USD.
+
+---
+
+## 23. The product (Phase 5)
+
+The research engine becomes something a client and an advisor can use.
+Nothing in it is new research: it runs the frozen portfolio of each profile
+(`configs/final_choice.yaml`) exactly as backtested.
+
+1. **Questionnaire → profile** (`product/questionnaire.py`). Risk
+   *capacity* (horizon and income stability: can the client afford a loss?)
+   and risk *tolerance* (what they would do after a 20% fall: can they stand
+   it?). The profile is the more cautious of the two, and anything under
+   three years is conservative.
+2. **Advice** (`product/advisor.py`). Today's weights for the profile, with
+   any sleeves the client wants to avoid removed (the nearest portfolio
+   within the profile without them); a one-line reason per holding;
+   2008 and 2022 replays; goal probability from 10,000 simulated futures of
+   today's weights on market history, after the portfolio's measured costs,
+   where the client sees the *lower* of the bootstrap and Student-t answers
+   (the same basis for every client, so excluding a holding cannot make the
+   odds look better by switching methods); what NT$2,000 more a month or
+   two more years would do; the rebalancing schedule that was actually
+   backtested; and an advisor-review trigger at 75% of the client's loss
+   limit. Nothing is sold automatically: a person decides.
+3. **One-page PDF** (`product/report.py`, Jinja2 → xhtml2pdf). Every number
+   comes from the advice object; the template only formats it.
+4. **API** (`product/api.py`, FastAPI): `POST /advice`, `POST /report`.
+   **Dashboard** (`app/streamlit_app.py`). **Docker** (`Dockerfile`,
+   `docker-compose.yml`). **CI** (`.github/workflows/portfolio-engine.yml`):
+   ruff and the full test suite on every push, on synthetic data.
+5. **A guard against leaking the hold-out:** the product needs all the data
+   to advise as of today, so the loader refuses to give it to the product
+   until the one-time hold-out evaluation has been logged.
+
+---
+
+## 24. Taiwan reality check: Taiwan cash and the real funds
+
+`backtest/taiwan.py`, `notebooks/06_taiwan_reality_check.ipynb`. Two
+questions about whether the research holds for a real Taiwan client. The
+portfolios are not re-chosen: the frozen choices are re-run and the changes
+reported, so the hold-out is not reused for selection.
+
+1. **Cash at Taiwan rates.** Every method, overlay choice and benchmark is
+   re-run with cash and the risk-free rate at the CBC deposit rate
+   (section 2), on development data and on the hold-out.
+2. **The real funds.** Monthly returns of 0050, 00646, 00645, 00679B,
+   00697B and 00635U (in TWD, from yfinance, in `data/taiwan/`) are compared
+   with each sleeve's proxy from mid-2017, when all six exist: correlation,
+   tracking error, return gap. Then the frozen portfolios' *actual trades*
+   (the target weights at each rebalance from the backtest) are replayed
+   twice, once on the proxies and once on the funds, executed the next
+   Taipei trading day, with spreads, commission and the 0.1% sell tax. Fund
+   fees are already in fund prices, so no extra fee is charged; there is
+   no FX spread because the funds trade in TWD. A test checks that the
+   replay on the proxies reproduces the backtest it came from.
+
+**What can go wrong:** nine years is a short sample dominated by one Taiwan
+boom; 0050's advantage over EWT is likely in large part its heavier TSMC
+weight (EWT's index caps single stocks), which works in both directions. 00645 holds Japan only, while the proxy is half
+developed, half emerging markets.
+
+---
+
+## 25. Questions you may be asked (and short answers)
+
+- **Why not just use mean-variance?** Expected returns are estimated with
+  huge error; the optimiser treats them as exact and swings to extremes. Here
+  it had the highest turnover and the least stable results across settings.
+- **Why Ledoit-Wolf?** It trades a little bias for much less noise in the
+  covariance matrix, with the mixing weight derived, not tuned.
+- **What does Black-Litterman add?** It starts from market-implied returns
+  instead of noisy historical ones, and turns views into a confidence-weighted
+  adjustment rather than a guess plugged straight into the optimiser.
+- **Risk parity vs HRP?** Both ignore expected returns. Risk parity equalises
+  risk contributions using the full covariance matrix; HRP clusters similar
+  assets and avoids inverting the matrix, which helps when correlations are high.
+- **Why CVaR instead of volatility?** Clients feel losses, not standard
+  deviations. CVaR measures the average of the worst outcomes and is
+  minimised exactly by linear programming (Rockafellar-Uryasev).
+- **How do you know the backtest is not cheating?** Walk-forward only; tests
+  that scramble the future and check the past is unchanged; a hold-out locked
+  before development and opened once; pre-registered decision rules; every
+  trial counted and the Sharpe ratio deflated for them.
+- **What failed?** Momentum tilts (more turnover, no risk benefit); no method
+  significantly beat 1/N on Sharpe; volatility caps alone could not keep a
+  conservative client within −10% (only the CVaR approach did); the
+  conservative profile's own numbers were inconsistent.
+- **What would you do next?** Real TWD deposit rates and Taiwan-listed fund
+  data, a longer history with more crises, transaction-cost estimates from
+  actual spreads, inflation-adjusted goals, and live paper-trading.

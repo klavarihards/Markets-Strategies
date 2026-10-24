@@ -74,11 +74,26 @@ def sleeve_returns_usd(prices: pd.DataFrame, fred: pd.DataFrame,
     out = {}
     for name, spec in sleeves.items():
         proxy = spec["proxy"]
-        if proxy == "cash_rate":
-            out[name] = rf
+        if proxy in ("cash_rate", "twd_deposit_rate"):
+            out[name] = rf                       # twd_deposit_rate is filled in by load_market_data
         else:
             out[name] = sum(w * tick_ret[t] for t, w in proxy.items())
     return pd.DataFrame(out), rf
+
+
+def twd_daily_rate(bank_rates: pd.DataFrame, index: pd.DatetimeIndex, column: str = "1-month deposit rates",
+                   lag_months: int = 1, periods_per_year: int = 252) -> pd.Series:
+    """Daily return of a Taiwan bank deposit, from the CBC's monthly rate table.
+
+    The rate for month M is only used from month M + ``lag_months`` on, because a
+    monthly average is not known until the month is over. If the latest months
+    have not been published yet, the last published rate is carried forward.
+    """
+    monthly = bank_rates[column].dropna()
+    monthly.index = monthly.index.to_period("M")
+    periods = index.to_period("M") - lag_months
+    rate = monthly.reindex(monthly.index.union(periods.unique())).ffill().reindex(periods)
+    return pd.Series(rate.to_numpy() / 100.0 / periods_per_year, index=index, name="twd_rate")
 
 
 def fx_returns(fred: pd.DataFrame, index: pd.DatetimeIndex) -> pd.Series:
@@ -108,11 +123,17 @@ def _log_unlock(log_dir: Path, info: dict[str, Any]) -> None:
 def load_market_data(cfg: dict[str, Any], snapshot_dir: str | Path | None = None,
                      frames: dict[str, pd.DataFrame] | None = None,
                      unlock_holdout: bool = False,
-                     log_dir: str | Path = "results") -> MarketData:
+                     log_dir: str | Path = "results", product: bool = False) -> MarketData:
     """Build :class:`MarketData` from a snapshot folder (or from ``frames`` directly, for tests).
 
     By default the hold-out period is removed. Pass ``unlock_holdout=True``
     only in the final evaluation cell; the unlock is logged with a timestamp.
+
+    ``product=True`` is for the client-facing product, which needs all the
+    data to give advice as of today. It is only allowed once the research is
+    finished, i.e. once the hold-out evaluation has been logged in
+    ``holdout_log.jsonl`` (``holdout_log`` may point elsewhere), so the product
+    can never become a back door into the hold-out during research.
     """
     if frames is None:
         frames, manifest = read_snapshot(snapshot_dir or cfg["data"]["snapshot_dir"])
@@ -122,6 +143,23 @@ def load_market_data(cfg: dict[str, Any], snapshot_dir: str | Path | None = None
     ppy = cfg["backtest"].get("periods_per_year", 252)
     ret_usd, rf = sleeve_returns_usd(frames["prices"], frames["fred"], cfg["sleeves"], ppy)
     fx = fx_returns(frames["fred"], ret_usd.index)
+
+    # Taiwan deposit rate for cash and/or the risk-free rate (configs/taiwan.yaml).
+    twd_sleeves = [k for k, v in cfg["sleeves"].items() if v["proxy"] == "twd_deposit_rate"]
+    if twd_sleeves or cfg.get("risk_free") == "twd_deposit_rate":
+        tcfg = cfg["taiwan"]
+        if "bank_rates" in frames:
+            bank_rates = frames["bank_rates"]
+        else:
+            tw_frames, tw_manifest = read_snapshot(tcfg["snapshot_dir"])
+            bank_rates = tw_frames[tcfg["cash_rate"]["table"]]
+            sid = f"{sid}+{snapshot_id(tw_manifest)}"
+        twd = twd_daily_rate(bank_rates, ret_usd.index, tcfg["cash_rate"]["column"],
+                             tcfg["cash_rate"].get("lag_months", 1), ppy)
+        for k in twd_sleeves:
+            ret_usd[k] = twd
+        if cfg.get("risk_free") == "twd_deposit_rate":
+            rf = twd.rename("rf")
 
     base = cfg.get("base_currency", "TWD").upper()
     ret = to_base_currency(ret_usd, fx) if base == "TWD" else ret_usd.copy()
@@ -139,15 +177,23 @@ def load_market_data(cfg: dict[str, Any], snapshot_dir: str | Path | None = None
         raise ValueError(f"Gaps longer than {_MAX_FILL} days in the data for sleeves {bad}")
 
     h_start = holdout_start(ret.index[-1], cfg["data"].get("holdout_years", 2))
-    if unlock_holdout:
+    base_sid = sid.split("+")[0]                 # the market-data snapshot (Taiwan data may be added)
+    if product and base_sid != "in-memory":
+        log = Path(cfg.get("product", {}).get("holdout_log", Path(log_dir) / "holdout_log.jsonl"))
+        opened = log.exists() and any(str(json.loads(line).get("snapshot_id")).split("+")[0] == base_sid
+                                      for line in log.read_text().splitlines() if line.strip())
+        if not opened:
+            raise PermissionError("The product uses all data, including the hold-out, so it is only "
+                                  "available after the one-time hold-out evaluation has been run and logged.")
+    elif unlock_holdout:
         _log_unlock(Path(log_dir), {
             "opened_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "snapshot_id": sid, "holdout_start": str(h_start.date()),
             "config": cfg.get("name"),
         })
-    else:
+    if not (unlock_holdout or product):
         dev = ret.index < h_start
         ret, ret_usd, rf, fx = ret[dev], ret_usd[dev], rf[dev], fx[dev]
 
     asset_class = {k: v["asset_class"] for k, v in cfg["sleeves"].items()}
-    return MarketData(ret, ret_usd, rf, fx, h_start, unlock_holdout, sid, asset_class)
+    return MarketData(ret, ret_usd, rf, fx, h_start, unlock_holdout or product, sid, asset_class)

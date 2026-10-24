@@ -1,6 +1,6 @@
-from portfolio_engine.config import config_hash, load_config
-
 from conftest import ROOT
+
+from portfolio_engine.config import config_hash, load_config
 
 
 def test_phase2_inherits_phase1():

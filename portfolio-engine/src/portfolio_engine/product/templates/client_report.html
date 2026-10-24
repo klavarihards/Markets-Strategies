@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Your plan</title>
+<style>
+  @page { size: a4 portrait; margin: 1.1cm 1.3cm; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 8.6pt; color: #1d2733; line-height: 1.3; }
+  h1 { font-size: 16pt; margin: 0 0 2pt 0; color: #0b3a5b; }
+  h2 { font-size: 10.5pt; margin: 7pt 0 3pt 0; color: #0b3a5b; border-bottom: 0.6pt solid #b9c6d2; padding-bottom: 1pt; }
+  .sub { color: #5a6b7b; font-size: 8pt; }
+  .big { font-size: 12pt; font-weight: bold; color: #0b3a5b; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { padding: 1.5pt 3pt; vertical-align: top; }
+  th { text-align: left; color: #5a6b7b; font-weight: normal; font-size: 7.5pt; border-bottom: 0.4pt solid #d0d8e0; }
+  .num { text-align: right; white-space: nowrap; }
+  .small { font-size: 7.2pt; color: #5a6b7b; }
+  .box { background-color: #f1f5f9; padding: 4pt 6pt; }
+</style>
+</head>
+<body>
+<h1>Your plan</h1>
+<div class="sub">{{ client_name }} · {{ profile.profile|capitalize }} profile · figures as of {{ as_of }} · hypothetical client, educational example</div>
+
+<h2>Your portfolio</h2>
+<table>
+<tr>
+<td style="width: 42%;"><img src="data:image/png;base64,{{ weights_png }}" width="215" height="137"></td>
+<td>
+<table>
+<tr><th>Holding</th><th class="num">Weight</th><th>Why it is there</th></tr>
+{% for h in portfolio.holdings %}
+<tr><td><b>{{ h.name }}</b><br><span class="small">{{ h.fund }}</span></td><td class="num">{{ "%.0f"|format(h.weight * 100) }}%</td><td>{{ h.why }}</td></tr>
+{% endfor %}
+</table>
+</td>
+</tr>
+</table>
+<div class="small">Built with {{ method_text }}. {{ profile.reason }}</div>
+
+<h2>Your chance of reaching the goal</h2>
+<table>
+<tr>
+<td style="width: 42%;">
+<div class="big">About {{ in_ten }} in 10 simulated futures reach NT${{ "{:,.0f}".format(goal.amount) }} by {{ goal.year }}.</div>
+<p>Typical outcome: NT${{ "{:,.0f}".format(goal.median) }}. A bad case (1 in 20): NT${{ "{:,.0f}".format(goal.p5) }}; a good case: NT${{ "{:,.0f}".format(goal.p95) }}. You will have paid in NT${{ "{:,.0f}".format(goal.contributed) }}.</p>
+<p class="small">{{ "{:,}".format(goal.n_paths) }} simulated futures: today's portfolio applied to market history (in random 12-month blocks, and from a fitted fat-tailed distribution), after estimated costs. This page shows the more cautious of the two ({{ "%.0f"|format(goal.probability * 100) }}% vs {{ "%.0f"|format(goal.probability_other_simulation * 100) }}%).</p>
+</td>
+<td><img src="data:image/png;base64,{{ fan_png }}" width="290" height="152"></td>
+</tr>
+</table>
+
+<h2>What a bad year could look like</h2>
+<p>{% for c in crises %}{{ c }} {% endfor %}</p>
+
+<h2>What would raise your odds</h2>
+<table class="box">
+<tr><td>Contribute NT${{ "{:,.0f}".format(goal.with_more_monthly.extra) }} more a month</td><td class="num"><b>{{ "%.0f"|format(goal.with_more_monthly.probability * 100) }}% chance</b></td></tr>
+<tr><td>Aim for {{ goal.year + goal.two_years_later.years }} instead of {{ goal.year }}</td><td class="num"><b>{{ "%.0f"|format(goal.two_years_later.probability * 100) }}% chance</b></td></tr>
+</table>
+
+<h2>When we will contact you</h2>
+<p>{{ schedule.rebalancing }} If your portfolio falls {{ "%.1f"|format(-risk.review_trigger * 100) }}% from its peak (three quarters of the {{ "%.0f"|format(-risk.max_loss_limit * 100) }}% loss you told us you could accept), your advisor will contact you to review the plan. Nothing is sold automatically: a person decides.</p>
+
+<h2>Limits of this analysis</h2>
+<p class="small">{{ limits }}</p>
+</body>
+</html>

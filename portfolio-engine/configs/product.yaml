@@ -1,0 +1,13 @@
+# Phase 5: the client product. Uses the research settings unchanged and the
+# portfolio per profile frozen in final_choice.yaml (written by notebook 04
+# from the pre-registered rules). Runs on all data, so it only starts once the
+# one-time hold-out evaluation is logged in experiments/holdout_log.jsonl.
+extends: taiwan.yaml               # Taiwan deposit rate for cash and risk-free (see configs/taiwan.yaml)
+name: product
+
+product:
+  final_choice: configs/final_choice.yaml
+  holdout_log: experiments/holdout_log.jsonl
+  n_paths: 10000
+  review_trigger_share: 0.75        # advisor review when the loss reaches 75% of the client's limit
+  report_crises: [global_financial_crisis, inflation_shock_2022]

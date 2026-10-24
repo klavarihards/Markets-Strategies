@@ -1,5 +1,7 @@
 # Quant Finance Projects
 
+**Featured: [Goal-Based Multi-Asset Portfolio Engine](portfolio-engine/) for a Taiwan-based investor, tested with real Taiwan-listed funds (mostly Yuanta)** ([key findings](portfolio-engine/README.md#key-findings) · [write-up](portfolio-engine/REPORT.md)) [![tests](https://github.com/klavarihards/Markets-Strategies/actions/workflows/portfolio-engine.yml/badge.svg)](https://github.com/klavarihards/Markets-Strategies/actions/workflows/portfolio-engine.yml)
+
 Trading strategies and a pricing model, built and backtested in Python.
 Each strategy goes through the same process: hypothesis → data analysis →
 strategy construction → stress testing (time windows, transaction costs,
@@ -125,46 +127,84 @@ Carlo notebook.
 
 ---
 
-### 7. Goal-Based Multi-Asset Portfolio Engine (in progress)
-**Folder:** `portfolio-engine/`
+### 7. Goal-Based Multi-Asset Portfolio Engine
+**Folder:** `portfolio-engine/` ·
+[write-up](portfolio-engine/REPORT.md) ·
+[research log](portfolio-engine/RESEARCH_LOG.md) ·
+[how it works](portfolio-engine/HOW_IT_WORKS.md) ·
+[sample client report](portfolio-engine/reports/sample_report_chen.pdf)
 
-A research engine for the question a wealth client asks: what should I hold,
-and how likely am I to reach my goal? It builds portfolios for a Taiwan-based
-investor from seven building blocks (Taiwan, US and international equity,
-long and intermediate bonds, gold, cash), measured in TWD, and compares
-allocation methods from equal weight up to Black-Litterman and hierarchical
-risk parity. Everything is tested walk-forward: at each quarterly rebalance
-the method only sees data up to that day, and fund fees, spreads, the 0.1%
-Taiwan ETF sell tax and FX costs are charged. The last two years of data are
-locked away as a hold-out until the end. Written as a Python package with
-pytest tests on synthetic data, one Colab notebook per phase, and a plain-
-language explanation of every part in `HOW_IT_WORKS.md`.
+A goals-based portfolio engine for a Taiwan-based investor: what should a
+client hold, and how likely are they to reach their goal? Seven building
+blocks in TWD (Taiwan, US and international equity, long and intermediate
+Treasuries, gold, cash); six allocation methods (equal weight, mean-variance
+with Ledoit-Wolf shrinkage, Black-Litterman, risk parity, hierarchical risk
+parity, minimum CVaR) under conservative, balanced and growth suitability
+profiles; GARCH volatility targeting, regime filters (rule-based and hidden
+Markov) and momentum tilts as overlays; stress tests, risk decomposition and
+Monte Carlo goal probabilities; and a client product (six-question
+questionnaire, one-page PDF report, FastAPI service, Streamlit dashboard).
 
-**Results:** not yet run on real data.
-- Phase 1 baselines (1/N, 60/40, 100% Taiwan equity), after costs, in TWD:
-  annualised return [RESULT], Sharpe [RESULT], max drawdown [RESULT]
-- Cost drag per year: [RESULT]
-- Phase 2, five methods (equal weight, mean-variance with Ledoit-Wolf
-  shrinkage, Black-Litterman, risk parity, HRP) under conservative, balanced
-  and growth profiles: best method per profile [RESULT]; Sharpe differences
-  vs 1/N and 60/40 with bootstrap intervals [RESULT]; profile limits
-  breached [RESULT]
+Everything is walk-forward with fund fees, spreads, the 0.1% Taiwan ETF sell
+tax and FX costs. The last two years were locked before development and
+opened once at the end; the Phase 4 decision rules were committed before the
+runs they decided; every backtest (336 development trials) is in a registry
+and the best results are reported with the deflated Sharpe ratio. Every
+optimiser is cross-checked against PyPortfolioOpt or Riskfolio-Lib. 104 tests
+run in CI on every push.
 
-**Limitations so far:** research uses long-history US-listed proxies, not
-the Taiwan-listed funds a client would hold; cash is modelled with the US
-T-bill rate; Black-Litterman's neutral portfolio is an assumption and it has
-no views yet; cost and tax rates are approximate assumptions; history is one
-sample path with only a few real crises.
+**Results (TWD, after costs; development Jan 2008 – Oct 2024, hold-out Oct 2024 – Oct 2026):**
+- No method reliably beat equal weight on risk-adjusted return: 0 of 60
+  Sharpe comparisons significant in development (3 of 72 with the CVaR
+  method, about what chance gives), and none for the frozen portfolios in
+  the hold-out
+- Downside control is where methods differed: the CVaR method was the only
+  one to keep a conservative client within a -10% loss limit (worst drawdown
+  -6.0%, against -11.6% to -16.6% for the others); tightening a volatility
+  cap could not do it
+- Overlays (regime filters, volatility targeting) cut the median balanced
+  portfolio's 2008-09 drawdown from -20% to -15% but changed little after
+  2010 and only added turnover in the calm hold-out; momentum tilts failed
+  every test
+- Hold-out, frozen portfolios: conservative 9.5% a year (worst drawdown
+  -5.2%), balanced 11.8% (-6.0%, Sharpe 1.01 vs 0.99 for 1/N), growth 13.9%
+  (-10.0%); every client loss limit held, but all lagged a boom in which
+  100% Taiwan equity returned 42% a year
+- Goal simulations: a 30-year growth client reached NT$12M in 46% of
+  simulated futures with 60/40 and 63-68% with the best methods; tail-risk
+  estimates differ a lot between block-bootstrap and fitted simulations
+- Re-run with the real Taiwan-listed funds (0050, 00646, 00645, 00679B,
+  00697B, 00635U) from July 2017 and cash at Taiwan deposit rates: the
+  frozen portfolios returned 1.0-1.4% a year more than with the US proxies;
+  the gold fund 00635U lagged spot gold by 5.3% a year (it tracks a gold futures index);
+  Taiwan cash lowered short-horizon clients' goal chances (78% to 73%,
+  76% to 70%)
 
-**Key concepts:** Walk-forward backtesting, transaction costs and taxes,
-currency conversion, hold-out testing, covariance shrinkage, Black-Litterman,
-risk parity, hierarchical risk parity, suitability constraints, bootstrap
-confidence intervals, reproducible research
+**What failed and was fixed along the way** (all in the research log): a
+partial trading day in the first download, currency risk hiding in "cash",
+mislabelled goal results, a deflated Sharpe on raw instead of excess
+returns, a factor regression that double-counted the currency, an
+unadjusted 4-for-1 split in Yahoo's 0050 data, and a product bug that made
+excluding a holding raise a client's odds.
+
+**Limitations:** the research itself ran on long-history US-listed proxies
+(the Taiwan funds start in 2017 and were only used to check it); the
+frozen research used the US T-bill rate for cash (Taiwan rates in the
+re-run and the product); cost,
+tax and duration inputs are approximate; three real crises in the sample;
+goals are nominal. Educational project with hypothetical clients, not
+investment advice.
+
+**Key concepts:** Goals-based investing, suitability, walk-forward
+backtesting, covariance shrinkage, Black-Litterman, risk parity, HRP, CVaR
+optimisation, GARCH, hidden Markov regimes, Monte Carlo simulation, stress
+testing, hold-out testing, pre-registration, deflated Sharpe ratio
 
 ---
 
 ## Stack
-- **Python** — pandas, numpy, matplotlib, scipy, arch, pytest
+- **Python** — pandas, numpy, matplotlib, scipy, arch, statsmodels, cvxpy, hmmlearn, pytest
+- **Product** (portfolio engine) — FastAPI, Streamlit, Jinja2, Docker, GitHub Actions
 - **Data** — yfinance (market data), investing.com (commodity futures)
 - **Environment** — Google Colab
 - **AI assistance** — Claude (Anthropic) for development, debugging, and research

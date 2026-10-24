@@ -1,0 +1,53 @@
+# Phase 3: risk and goals. Inherits data, costs, profiles and the five methods
+# from Phase 2, adds a CVaR method, stress tests, risk decomposition and Monte
+# Carlo goal probabilities for three hypothetical clients.
+extends: phase2_methods.yaml
+name: phase3_risk
+
+methods:
+  # CVaR variant: the portfolio with the smallest average loss on its worst 5% of
+  # days (historical, over the estimation window), inside the profile limits.
+  min_cvar: {alpha: 0.95}
+
+risk:
+  window_years: 3             # which walk-forward run the risk tables describe
+  cvar_alpha: 0.95
+
+stress:
+  # Historical crises, replayed with each method's latest weights (held without
+  # rebalancing through the episode), in TWD.
+  historical:
+    global_financial_crisis: ["2007-10-01", "2009-03-31"]
+    euro_debt_crisis:        ["2011-01-01", "2011-12-31"]
+    taper_tantrum:           ["2013-05-01", "2013-09-30"]
+    covid_crash:             ["2020-02-01", "2020-03-31"]
+    inflation_shock_2022:    ["2022-01-01", "2022-12-31"]
+  # Instant shocks applied to current weights. `shocks` are returns in local
+  # currency; `fx` is the change in TWD per USD (+0.10 = TWD weakens 10%), which
+  # moves every sleeve in `fx_exposed`; `rates` is a parallel change in US yields,
+  # turned into bond returns with the durations below; `correlation` replaces all
+  # correlations between risky sleeves (a risk scenario, not a price shock).
+  fx_exposed: [us_equity, intl_equity, long_treasury, intermediate_bond, gold]
+  durations: {long_treasury: 17.0, intermediate_bond: 7.5}   # ASSUMPTION: approximate modified durations, years
+  hypothetical:
+    taiwan_crash_twd_weakens: {shocks: {taiwan_equity: -0.30}, fx: 0.10}
+    us_rates_up_2pp:          {rates: 0.02}
+    gold_down_20:             {shocks: {gold: -0.20}}
+    correlations_rise_to_0_8: {correlation: 0.8}
+
+# Hypothetical clients (one per profile), amounts in TWD, nominal (no inflation
+# adjustment). Illustrations for the goal analysis, not real people.
+clients:
+  conservative: {description: "Top up a home deposit in 5 years", horizon_years: 5,
+                 initial: 1000000, monthly: 10000, goal: 1700000}
+  balanced:     {description: "Home deposit in 10 years", horizon_years: 10,
+                 initial: 600000, monthly: 15000, goal: 3000000}
+  growth:       {description: "Retirement in 30 years", horizon_years: 30,
+                 initial: 300000, monthly: 10000, goal: 12000000}
+
+monte_carlo:
+  n_paths: 10000
+  block_months: 12            # bootstrap whole years so calm and crisis spells stay together
+  student_t_dof: 5            # fat tails for the fitted-distribution version
+  extra_years: 20             # simulate past the horizon to see how late the goal is reached in bad cases
+  sensitivity: {extra_monthly: 2000, extra_years: 2}

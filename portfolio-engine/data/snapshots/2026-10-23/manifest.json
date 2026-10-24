@@ -1,0 +1,62 @@
+{
+  "created_utc": "2026-10-23T15:47:13+00:00",
+  "source": "yfinance (auto_adjust=True) and FRED CSV",
+  "downloaded_on": "2026-10-23",
+  "requested_start": "2004-11-18",
+  "requested_end": "2026-10-23",
+  "tickers": [
+    "EWT",
+    "SPY",
+    "EFA",
+    "EEM",
+    "TLT",
+    "IEF",
+    "GLD"
+  ],
+  "taiwan_listed": [
+    "0050.TW"
+  ],
+  "fred_series": {
+    "cash_rate": "DTB3",
+    "usdtwd": "DEXTAUS"
+  },
+  "files": {
+    "prices": {
+      "file": "prices.parquet",
+      "sha256": "ce43b483bd96926f434cddabdf7e6830b2d473d49a35a55dd1807b2ba4ad04d4",
+      "rows": 5516,
+      "columns": [
+        "EWT",
+        "SPY",
+        "EFA",
+        "EEM",
+        "TLT",
+        "IEF",
+        "GLD"
+      ],
+      "first": "2004-11-18",
+      "last": "2026-10-22"
+    },
+    "taiwan_listed": {
+      "file": "taiwan_listed.parquet",
+      "sha256": "d18b6cb095d0006b84f15f39c67cb1d8e444b481acc0b6a0897c577d5f186ba5",
+      "rows": 4357,
+      "columns": [
+        "0050.TW"
+      ],
+      "first": "2009-01-02",
+      "last": "2026-10-22"
+    },
+    "fred": {
+      "file": "fred.parquet",
+      "sha256": "57d955f5bdf7d9292de994209884ec0603d8e153dc410eb9c52b778c5dafd6fa",
+      "rows": 5720,
+      "columns": [
+        "cash_rate",
+        "usdtwd"
+      ],
+      "first": "2004-11-18",
+      "last": "2026-10-21"
+    }
+  }
+}

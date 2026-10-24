@@ -2,13 +2,17 @@
 
 import pandas as pd
 import pytest
+from conftest import ROOT
 
-from portfolio_engine.backtest import (compliance_table, exposure_table, run_experiment,
-                                       sharpe_comparison_table, summary_table)
+from portfolio_engine.backtest import (
+    compliance_table,
+    exposure_table,
+    run_experiment,
+    sharpe_comparison_table,
+    summary_table,
+)
 from portfolio_engine.config import load_config, override
 from portfolio_engine.data import load_market_data, make_synthetic_frames
-
-from conftest import ROOT
 
 
 @pytest.fixture(scope="module")

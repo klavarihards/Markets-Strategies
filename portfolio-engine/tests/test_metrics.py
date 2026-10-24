@@ -78,3 +78,29 @@ def test_fast_bootstrap_equals_direct_resampling():
     lo, hi = np.quantile(sr[:, 0] - sr[:, 1], [0.05, 0.95])
     assert fast["ci_low"] == pytest.approx(lo, abs=1e-12)
     assert fast["ci_high"] == pytest.approx(hi, abs=1e-12)
+
+
+def test_probabilistic_and_deflated_sharpe():
+    rng = np.random.default_rng(4)
+    strong = _s(rng.normal(0.001, 0.01, 2500))           # daily Sharpe 0.1, about 1.6 a year
+    noise = _s(rng.normal(0.0, 0.01, 2500))
+    assert m.probabilistic_sharpe_ratio(strong) > 0.99
+    assert 0.0 < m.probabilistic_sharpe_ratio(noise) < 0.99
+    # With one trial there is nothing to deflate: DSR equals PSR against zero.
+    one = m.deflated_sharpe_ratio(strong, np.array([0.1]))
+    assert one["dsr"] == pytest.approx(m.probabilistic_sharpe_ratio(strong))
+    # More trials raise the bar and lower the DSR.
+    trials = rng.normal(0, 0.02, 200)
+    many = m.deflated_sharpe_ratio(strong, trials)
+    assert many["sr0_daily"] > 0 and many["dsr"] < one["dsr"]
+    assert m.expected_max_sharpe(rng.normal(0, 0.02, 1000)) > m.expected_max_sharpe(rng.normal(0, 0.02, 10))
+
+
+def test_expected_max_sharpe_matches_simulation():
+    # The formula should approximate the average best of N pure-noise Sharpe ratios.
+    from scipy.stats import norm
+    n, sd = 50, 0.03
+    trials = norm.ppf((np.arange(n) + 0.5) / n)
+    trials = trials / trials.std(ddof=1) * sd                  # N trials with variance exactly sd^2
+    simulated = np.random.default_rng(5).normal(0, sd, size=(20000, n)).max(axis=1).mean()
+    assert m.expected_max_sharpe(trials) == pytest.approx(simulated, rel=0.03)

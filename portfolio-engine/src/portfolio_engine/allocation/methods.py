@@ -20,7 +20,10 @@ results come from the method, not from different inputs.
    giving less to riskier groups. No matrix inversion, so it is stable when
    assets are highly correlated.
 
-Methods 2 and 3 have the profile limits inside their optimisation. Methods
+Phase 3 adds a CVaR variant (``MinCVaR``): the portfolio with the smallest
+average loss on its worst days, aimed at conservative clients.
+
+Methods 2, 3 and the CVaR variant have the profile limits inside their optimisation. Methods
 1, 4 and 5 compute their own weights first and are then moved to the
 nearest portfolio that satisfies the profile (see ``optimizer.py``).
 """
@@ -34,11 +37,17 @@ import pandas as pd
 import scipy.cluster.hierarchy as sch
 import scipy.spatial.distance as ssd
 
-from ..estimators import (black_litterman, correlation_from_cov, estimate_cov, historical_mean,
-                          implied_returns, views_matrices)
+from ..estimators import (
+    black_litterman,
+    correlation_from_cov,
+    estimate_cov,
+    historical_mean,
+    implied_returns,
+    views_matrices,
+)
+from ..estimators.views import active_views, idzorek_omega, load_views
 from .optimizer import solve
 from .profiles import RiskProfile
-
 
 # ---------------------------------------------------------------------------
 # Pure weight rules (no profile), usable and testable on their own
@@ -185,17 +194,27 @@ class BlackLitterman(ProfileMethod):
     method = "black_litterman"
 
     def __init__(self, *args, market_weights: dict[str, float], risk_aversion: float = 2.5,
-                 tau: float = 0.05, views: list[dict] | None = None, **kw):
+                 tau: float = 0.05, views: list[dict] | None = None, views_file: str | None = None, **kw):
         super().__init__(*args, **kw)
         self.market_weights = pd.Series(market_weights, dtype=float)
         self.risk_aversion = risk_aversion
         self.tau = tau
         self.views = views or []
+        # Dated views (configs/views.yaml): each is used only from the day it was
+        # entered until its horizon ends, with its stated confidence (Idzorek).
+        self.dated_views = load_views(views_file) if views_file else []
 
     def weights(self, history, cov):
         pi = implied_returns(cov, self.market_weights, self.risk_aversion)
         P, Q = views_matrices(self.views, cov.index) if self.views else (None, None)
-        mu, post_cov = black_litterman(cov, pi, P, Q, tau=self.tau)
+        omega = None
+        if self.dated_views:
+            P, Q, conf, used = active_views(self.dated_views, history.index[-1], cov.index)
+            if used:
+                omega = idzorek_omega(P, cov.to_numpy(), conf, self.tau)
+            else:
+                P, Q = None, None
+        mu, post_cov = black_litterman(cov, pi, P, Q, omega=omega, tau=self.tau)
         return solve(post_cov.to_numpy(), list(cov.index), self.asset_class, self.profile, "utility",
                      mu=mu.to_numpy(), risk_aversion=self.risk_aversion, vol_cap=self.vol_cap)
 
@@ -233,8 +252,27 @@ class HierarchicalRiskParity(ProfileMethod):
         return self._nearest(raw.to_numpy(), cov)
 
 
+class MinCVaR(ProfileMethod):
+    """The CVaR variant: lowest average loss on the worst days, inside the profile.
+
+    Uses the actual daily returns of the estimation window as scenarios, so
+    fat tails and crashes in the data count directly, with no assumption of
+    a bell curve. Uses no expected returns.
+    """
+
+    method = "min_cvar"
+
+    def __init__(self, *args, alpha: float = 0.95, **kw):
+        super().__init__(*args, **kw)
+        self.alpha = alpha
+
+    def weights(self, history, cov):
+        return solve(cov.to_numpy(), list(cov.index), self.asset_class, self.profile, "min_cvar",
+                     scenarios=history[list(cov.index)].to_numpy(), alpha=self.alpha, vol_cap=self.vol_cap)
+
+
 METHODS = {c.method: c for c in (EqualWeightMethod, MeanVariance, BlackLitterman,
-                                  RiskParity, HierarchicalRiskParity)}
+                                  RiskParity, HierarchicalRiskParity, MinCVaR)}
 
 
 def build_method_allocators(cfg: dict[str, Any]) -> dict[str, ProfileMethod]:

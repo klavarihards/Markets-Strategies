@@ -1,0 +1,31 @@
+# Phase 4: overlays and robustness. Inherits everything from Phase 3.
+# The decision rules applied to these runs were pre-registered in
+# RESEARCH_LOG.md before any of them was run.
+extends: phase3_risk.yaml
+name: phase4_overlays
+
+macro:
+  snapshot_dir: data/macro/latest
+  fred: {credit_spread: BAA10Y}     # Moody's Baa corporate yield minus 10-year Treasury, % points
+  start: "2001-01-01"
+
+overlays:
+  window_years: 3                   # the overlay study uses the 3-year estimation window
+  frequency: monthly                # overlay checks at each month-end
+  tolerance: 0.02                   # trade only if the overlay target moved > 2% one-way
+  variants: [core, vol_target, regime_rule, regime_hmm, tilt, all]
+  vol_target: {garch_window_days: 504, horizon_days: 21}
+  regime: {cash_buffer: 0.10}
+  tilt: {lookback_months: 12, strength: 0.02, max_tilt: 0.05}
+  all: {regime_model: rule}         # pre-registered: the simpler regime model goes into "all"
+
+decision_rules:                     # Rule 1 and Rule 2 in RESEARCH_LOG.md
+  keep_overlay: {min_risk_improvement: 0.10, max_sharpe_loss: 0.05}
+  select_method: {sharpe_tolerance: 0.05}
+
+robustness:
+  profile: balanced
+  rebalance: [monthly, quarterly, annual]
+  risk_aversion: [1.0, 2.5, 5.0, 10.0]
+  max_weight: [0.30, 0.40, 0.50]
+  calibrated_conservative_vol_cap: 0.06

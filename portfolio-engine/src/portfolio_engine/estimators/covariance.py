@@ -38,6 +38,26 @@ def ledoit_wolf(returns: pd.DataFrame, target: str = "constant_correlation",
                 ppy: int = 252) -> tuple[pd.DataFrame, float]:
     """Annualised shrunk covariance and the shrinkage intensity ``delta``.
 
+    A sleeve whose return never changed in the window (a Taiwan deposit rate
+    can stay unchanged for years) has zero variance: it is riskless, so it gets
+    zero variance and zero covariance with everything, and the shrinkage is
+    estimated on the other sleeves. (Its correlation is undefined, and the
+    constant-correlation formula would divide by zero.)
+    """
+    var = returns.var(ddof=0)
+    live = var > 1e-20 * max(float(var.max()), 1e-300)
+    if not live.all():
+        sub, delta = _ledoit_wolf(returns.loc[:, live], target, ppy)
+        full = pd.DataFrame(0.0, index=returns.columns, columns=returns.columns)
+        full.loc[sub.index, sub.columns] = sub
+        return full, delta
+    return _ledoit_wolf(returns, target, ppy)
+
+
+def _ledoit_wolf(returns: pd.DataFrame, target: str = "constant_correlation",
+                 ppy: int = 252) -> tuple[pd.DataFrame, float]:
+    """Annualised shrunk covariance and the shrinkage intensity ``delta``.
+
     ``target`` is ``"constant_correlation"`` (Ledoit-Wolf 2004, the default)
     or ``"constant_variance"`` (a multiple of the identity matrix: same
     variance for everything and no correlation, Ledoit-Wolf 2004b).
@@ -90,6 +110,9 @@ def estimate_cov(returns: pd.DataFrame, settings: dict | None = None, ppy: int =
 
 
 def correlation_from_cov(cov: pd.DataFrame) -> pd.DataFrame:
-    """Turn a covariance matrix into a correlation matrix."""
+    """Turn a covariance matrix into a correlation matrix (a riskless sleeve gets correlation 0)."""
     sd = np.sqrt(np.diag(cov))
-    return cov / np.outer(sd, sd)
+    denom = np.outer(sd, sd)
+    corr = np.divide(cov.to_numpy(), denom, out=np.zeros_like(denom), where=denom > 0)
+    np.fill_diagonal(corr, 1.0)
+    return pd.DataFrame(corr, cov.index, cov.columns)

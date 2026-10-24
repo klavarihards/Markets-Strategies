@@ -185,14 +185,19 @@ def sharpe_comparison_table(results: dict[tuple[float, str], BacktestResult], da
 
 def save_run(results: dict[tuple[float, str], BacktestResult], summary: pd.DataFrame,
              cfg: dict[str, Any], data: MarketData, out_dir: str | Path = "results",
-             tables: dict[str, pd.DataFrame] | None = None) -> Path:
-    """Write returns, weights, tables and a provenance record to ``out_dir/<config>_<hash>_.../``."""
+             tables: dict[str, pd.DataFrame] | None = None, register: bool = True,
+             registry: str | Path = "experiments/registry.csv") -> Path:
+    """Write returns, weights, tables and a provenance record to ``out_dir/<config>_<hash>_.../``.
+
+    Every saved run is also appended to the trial registry (see ``registry.py``).
+    """
     h = config_hash(cfg)
     tag = "holdout" if data.includes_holdout else "dev"
     run_dir = Path(out_dir) / f"{cfg.get('name', 'run')}_{h}_{data.snapshot_id}_{tag}"
     run_dir.mkdir(parents=True, exist_ok=True)
     rets = pd.DataFrame({f"{n}|{w}y": r.returns for (w, n), r in results.items()})
     rets.to_parquet(run_dir / "daily_returns.parquet")
+    data.rf.reindex(rets.index).to_frame("rf").to_parquet(run_dir / "rf.parquet")   # for excess-return Sharpe
     weights = pd.concat({f"{n}|{w}y": r.weights for (w, n), r in results.items()}, names=["run", "date"])
     weights.to_parquet(run_dir / "weights.parquet")
     summary.to_csv(run_dir / "summary.csv")
@@ -212,11 +217,15 @@ def save_run(results: dict[tuple[float, str], BacktestResult], summary: pd.DataF
         "config": {k: v for k, v in cfg.items() if not k.startswith("_")},
     }
     (run_dir / "run.json").write_text(json.dumps(record, indent=2, default=str))
+    if register:
+        from .registry import register_run
+        register_run(run_dir, registry)
     return run_dir
 
 
 def evaluate_holdout(cfg: dict[str, Any], allocators: dict[str, Allocator] | None = None,
-                     snapshot_dir: str | Path | None = None, out_dir: str | Path = "results"):
+                     snapshot_dir: str | Path | None = None, out_dir: str | Path = "results",
+                     registry: str | Path = "experiments/registry.csv"):
     """The final, one-time evaluation on the locked hold-out period.
 
     Loads the full snapshot (this is the only place in the package that
@@ -237,5 +246,5 @@ def evaluate_holdout(cfg: dict[str, Any], allocators: dict[str, Allocator] | Non
     if "profiles" in cfg:
         tables = {"compliance": compliance_table(results, data, cfg, period=period),
                   "sharpe_comparison": sharpe_comparison_table(results, data, cfg, period=period)}
-    run_dir = save_run(results, summary, cfg, data, out_dir, tables)
+    run_dir = save_run(results, summary, cfg, data, out_dir, tables, registry=registry)
     return summary, results, run_dir
