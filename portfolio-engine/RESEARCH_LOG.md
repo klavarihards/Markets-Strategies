@@ -77,8 +77,7 @@ loss limit. On synthetic and real data, the conservative profile hit its
 
 ## Iteration 5: cash treated as a TWD deposit
 
-**Decision (with the project owner, before Phase 3):** cash becomes a TWD
-deposit (`currency: TWD`): no currency risk, but still the US T-bill rate,
+Cash becomes a TWD deposit (`currency: TWD`): no currency risk, but still the US T-bill rate,
 since no long daily TWD rate series is freely available, so cash returns
 are somewhat overstated. Rationale: a conservative client's cash should
 not carry 5% currency volatility. Phases 1 and 2 were re-run (configs
@@ -200,7 +199,7 @@ monthly CVaR.) The momentum tilt **failed everywhere**: it added 21-29
 points of turnover a year and did not reduce risk.
 
 **Weakness in my own rule:** "all" includes the failed tilt, but passed as a
-package. The rule was applied as written; the benefit of "all" almost
+package. The rule was applied; the benefit of "all" almost
 certainly comes from its regime and volatility parts. A better rule would
 have tested packages only from components that passed on their own.
 
@@ -225,7 +224,7 @@ objective is the right one.
 risk parity, HRP and min-CVaR portfolios kept Sharpe ratios of 0.57-0.72;
 balanced mean-variance fell to -0.09; every growth portfolio was near 0.
 
-**Mentor's check: where does the overlay benefit come from?** Almost
+**Where does the overlay benefit come from?** Almost
 entirely from 2008-09. For balanced clients the median method's worst
 drawdown in 2008-09 improves from -20.0% (core) to -15.1% (regime filter);
 from 2010 onwards worst drawdowns are almost unchanged (-13.1% vs -11.7% to
@@ -350,7 +349,7 @@ the future; frozen and hashed data; a hold-out locked first and opened once
 every trial counted and the Sharpe ratio deflated; every optimiser checked
 against an established library; failures and bugs recorded here, not hidden.
 
-**What a sceptical reviewer would still push on**
+**What a sceptical reviewer could still push on**
 1. Three real crises in 22 years is a small sample for tail-risk claims.
 2. Proxies, not the Taiwan-listed funds, drive the research; cash earns the
    US T-bill rate; cost, tax and duration inputs are approximate.
